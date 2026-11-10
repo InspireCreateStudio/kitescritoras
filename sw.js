@@ -1,8 +1,8 @@
 // Kit Escritoras — funciona sin conexión.
 // Sirve los archivos guardados y, si hay internet, se trae la versión nueva para la próxima vez.
-// Cuando cambies index.html, sube también este archivo cambiando VERSION (ks-v2, ks-v3…).
-const VERSION = 'ks-v1';
-const ARCHIVOS = ['./', './index.html', './manifest.webmanifest', './iconos/32.png', './iconos/180.png', './iconos/192.png', './iconos/512.png'];
+// Cuando cambies app.js o app.css, sube también este archivo cambiando VERSION (ks-v4, ks-v5…).
+const VERSION = 'ks-v3';
+const ARCHIVOS = ['./', './index.html', './app.css', './app.js', './manifest.webmanifest', './32.png', './180.png', './192.png', './512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(ARCHIVOS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
