@@ -315,7 +315,7 @@ function save() {
 
 function normalize(st) {
   if (!st || !Array.isArray(st.proyectos) || !st.proyectos.length) return seed();
-  ["posts", "ventas", "prensa", "colabs", "catalogo", "kdpVentas", "ingresos", "gastosNeg", "directa", "redesMes", "derechos", "resenas", "eventos", "objetivos"].forEach(k => { if (!Array.isArray(st[k])) st[k] = []; });
+  ["posts", "ventas", "prensa", "colabs", "catalogo", "kdpVentas", "ingresos", "gastosNeg", "directa", "redesMes", "derechos", "resenas", "eventos", "objetivos", "historico"].forEach(k => { if (!Array.isArray(st[k])) st[k] = []; });
   st.proyectos.forEach(p => {
     const base = newProject(p.titulo);
     Object.keys(base).forEach(k => { if (p[k] === undefined || p[k] === null) p[k] = base[k]; });
@@ -1231,7 +1231,7 @@ function vPrensa() {
 }
 
 /* ---------- Negocio de autora: catálogo, ventas de Amazon, ingresos, gastos, impuestos ---------- */
-const NEG_LISTAS = ["catalogo", "kdpVentas", "ingresos", "gastosNeg", "directa", "redesMes", "derechos", "resenas", "eventos", "objetivos"];
+const NEG_LISTAS = ["catalogo", "kdpVentas", "ingresos", "gastosNeg", "directa", "redesMes", "derechos", "resenas", "eventos", "objetivos", "historico"];
 const MONEDAS = { EUR: 1, USD: 0.8662, GBP: 1.1715, CAD: 0.622, AUD: 0.57, MXN: 0.047, BRL: 0.16, JPY: 0.0054, INR: 0.0101 };
 function negocio() {
   if (!S.negocio || typeof S.negocio !== "object") S.negocio = {};
@@ -1444,11 +1444,11 @@ function vCatalogo() {
 }
 
 /* ---- Vista: Negocio ---- */
-const NSUBS = [["resumen", "Resumen del año"], ["amazon", "Ventas de Amazon"], ["ingresos", "Otros ingresos"], ["gastos", "Gastos"], ["directa", "Venta directa"], ["impuestos", "Impuestos"], ["objetivos", "Objetivos y redes"], ["derechos", "Derechos y eventos"]];
+const NSUBS = [["resumen", "Resumen del año"], ["comparar", "Comparar años"], ["amazon", "Ventas de Amazon"], ["ingresos", "Otros ingresos"], ["gastos", "Gastos"], ["directa", "Venta directa"], ["impuestos", "Impuestos"], ["objetivos", "Objetivos y redes"], ["derechos", "Derechos y eventos"]];
 function vNegocio() {
   const sub = NSUBS.some(s => s[0] === view.nsub) ? view.nsub : "resumen";
   const tabs = `<div class="filters">${NSUBS.map(([k, t]) => `<button type="button" data-nsub="${k}" aria-pressed="${sub === k}">${t}</button>`).join("")}</div>`;
-  const body = { resumen: nResumen, amazon: nAmazon, ingresos: nIngresos, gastos: nGastos, directa: nDirecta, impuestos: nImpuestos, objetivos: nObjetivos, derechos: nDerechos }[sub]();
+  const body = { resumen: nResumen, comparar: nComparar, amazon: nAmazon, ingresos: nIngresos, gastos: nGastos, directa: nDirecta, impuestos: nImpuestos, objetivos: nObjetivos, derechos: nDerechos }[sub]();
   return `<div class="head"><div><div class="eyebrow">Negocio de autora</div><h1>Tu negocio</h1>
     <p>Todo el dinero de tu escritura: Amazon, otros ingresos, venta directa, gastos e impuestos. Cambia de año o de trimestre con las flechas de arriba.</p></div></div>${tabs}${body}`;
 }
@@ -1614,7 +1614,7 @@ function cargarCentroControl(d) {
     if (d.negocio) Object.assign(negocio(), d.negocio);
   } };
 }
-const NOMBRES_LISTAS = { catalogo: "libros", kdpVentas: "líneas de Amazon", ingresos: "ingresos", gastosNeg: "gastos", directa: "ventas directas", redesMes: "meses de seguidores", derechos: "contratos", resenas: "recuentos de reseñas", eventos: "eventos", objetivos: "objetivos" };
+const NOMBRES_LISTAS = { catalogo: "libros", kdpVentas: "líneas de Amazon", ingresos: "ingresos", gastosNeg: "gastos", directa: "ventas directas", redesMes: "meses de seguidores", derechos: "contratos", resenas: "recuentos de reseñas", eventos: "eventos", objetivos: "objetivos", historico: "años apuntados a mano" };
 function abrirCentroControl() {
   openModal(`<h2>Traer datos del Centro de control</h2>
     <p style="margin:0">Elige el archivo <b>centro-control-para-kit.json</b>. Se cargan tu catálogo, las ventas de Amazon, los ingresos, gastos, venta directa, impuestos y el resto de la parte de negocio.</p>
@@ -1634,6 +1634,127 @@ function abrirCentroControl() {
       r.readAsText(f);
     });
   });
+}
+
+/* ---- Negocio › Comparar años (el año elegido y los cinco anteriores) ---- */
+COLS.historico = [
+  { k: "anio", t: "Año", type: "number", w: 80 },
+  { k: "amazon", t: "Amazon (€)", type: "money", w: 110 },
+  { k: "ejemplares", t: "Ejemplares Amazon", type: "number", w: 100 },
+  { k: "kenp", t: "Páginas KENP", type: "number", w: 110 },
+  { k: "otros", t: "Otros ingresos (€)", type: "money", w: 110 },
+  { k: "directa", t: "Venta directa y eventos (€)", type: "money", w: 120 },
+  { k: "gastos", t: "Gastos (€)", type: "money", w: 100 },
+  { k: "notas", t: "Notas", w: 200 }
+];
+function datosAnio(y) {
+  const c = cifras(y + "-01", y + "-12");
+  const h = (S.historico || []).find(x => String(x.anio) === String(y)) || {};
+  let uds = 0, kenp = 0;
+  (S.kdpVentas || []).forEach(l => { if (!String(l.mes).startsWith(y)) return; if (l.formato === "KENP") kenp += num(l.uds); else uds += num(l.uds); });
+  const manual = {};
+  const pick = (k, auto) => { if (auto) return auto; if (num(h[k])) { manual[k] = true; return num(h[k]); } return 0; };
+  const r = {
+    amazon: pick("amazon", c.kdp + c.kdpManual), ejemplares: pick("ejemplares", uds), kenp: pick("kenp", kenp),
+    otros: pick("otros", c.otros), directa: pick("directa", c.directa + c.eventos), gastos: pick("gastos", c.gastos)
+  };
+  r.ingresos = r.amazon + r.otros + r.directa;
+  r.beneficio = r.ingresos - r.gastos;
+  r.lanzamientos = S.catalogo.filter(b => String(b.fecha || "").startsWith(y));
+  const redes = S.redesMes.filter(m => String(m.mes).startsWith(y)).sort((a, b) => String(a.mes).localeCompare(String(b.mes)));
+  const ult = redes[redes.length - 1] || {};
+  r.instagram = num(ult.instagram); r.newsletter = num(ult.newsletter);
+  r.resenas = S.resenas.filter(x => String(x.fecha || "").startsWith(y)).reduce((m, x) => Math.max(m, num(x.num)), 0);
+  r.manual = manual;
+  r.hay = r.ingresos || r.gastos || r.ejemplares || r.kenp;
+  return r;
+}
+function variacion(a, b) {
+  // a: año anterior, b: este año
+  if (!a && !b) return "";
+  if (!a) return `<span class="var up">nuevo</span>`;
+  const p = Math.round((b - a) / Math.abs(a) * 100);
+  return `<span class="var ${p > 0 ? "up" : p < 0 ? "down" : ""}">${p > 0 ? "▲ +" : p < 0 ? "▼ " : "= "}${p}%</span>`;
+}
+function porQue(y, d, dp) {
+  // Explicaciones automáticas de qué cambió entre y-1 y y
+  const out = [], yp = String(+y - 1);
+  if (!d.hay) return [`No hay datos de ${y}.`];
+  if (!dp.hay) return [`No hay datos de ${yp} para comparar. Importa sus ventas de Amazon o apunta sus cifras en «Años sin detalle».`];
+  const dif = d.ingresos - dp.ingresos;
+  out.push(`Ingresos ${dif >= 0 ? "suben" : "bajan"} ${eur(Math.abs(dif))} (${eur(dp.ingresos)} → ${eur(d.ingresos)}).`);
+  const partes = [["Amazon", d.amazon - dp.amazon], ["otros ingresos", d.otros - dp.otros], ["venta directa y eventos", d.directa - dp.directa]].filter(x => Math.abs(x[1]) >= 1).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  if (partes.length && Math.abs(dif) >= 1) out.push(`Lo que más pesa: ${partes.slice(0, 2).map(([k, v]) => k + " (" + (v >= 0 ? "+" : "−") + eur(Math.abs(v)) + ")").join(" y ")}.`);
+  if (dp.kenp || d.kenp) out.push(`Páginas leídas en Kindle Unlimited: ${fmt(dp.kenp)} → ${fmt(d.kenp)}${dp.kenp ? " (" + Math.round((d.kenp - dp.kenp) / dp.kenp * 100) + "%)" : ""}.`);
+  const la = porLibro(y), lb = porLibro(yp), mb = {}; lb.forEach(o => mb[o.libro] = o.total);
+  const cambios = la.map(o => [o.libro, o.total - (mb[o.libro] || 0), !!mb[o.libro]]);
+  lb.forEach(o => { if (!la.some(x => x.libro === o.libro)) cambios.push([o.libro, -o.total, true]); });
+  const sube = cambios.filter(c => c[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 3), baja = cambios.filter(c => c[1] < -1).sort((a, b) => a[1] - b[1]).slice(0, 3);
+  if (sube.length) out.push(`Libros que tiran hacia arriba: ${sube.map(([l, v, ant]) => esc(l) + " +" + eur(v) + (ant ? "" : " (primer año con ventas)")).join(", ")}.`);
+  if (baja.length) out.push(`Libros que bajan: ${baja.map(([l, v]) => esc(l) + " −" + eur(-v)).join(", ")}.`);
+  if (d.lanzamientos.length) out.push(`Publicaste ${d.lanzamientos.length === 1 ? "un libro" : d.lanzamientos.length + " libros"}: ${d.lanzamientos.map(b => esc(b.titulo) + (b.fecha ? " (" + mesLabel(b.fecha.slice(0, 7)) + ")" : "")).join(", ")}.`);
+  else if (dp.lanzamientos.length) out.push(`Este año no publicaste nada nuevo (en ${yp} salieron ${dp.lanzamientos.length}): sin lanzamiento, las ventas suelen bajar.`);
+  const dg = d.gastos - dp.gastos;
+  if (Math.abs(dg) >= 1) {
+    const cat = yy => { const m = {}; S.gastosNeg.forEach(g => { if (String(g.fecha || "").startsWith(yy)) m[g.categoria || "Otros"] = (m[g.categoria || "Otros"] || 0) + num(g.base); }); return m; };
+    const ca = cat(y), cb = cat(yp), ks = [...new Set([...Object.keys(ca), ...Object.keys(cb)])].map(k => [k, (ca[k] || 0) - (cb[k] || 0)]).filter(x => Math.abs(x[1]) >= 1).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+    out.push(`Gastos ${dg > 0 ? "suben" : "bajan"} ${eur(Math.abs(dg))}${ks.length ? ", sobre todo en " + ks.slice(0, 2).map(([k, v]) => esc(k) + " (" + (v >= 0 ? "+" : "−") + eur(Math.abs(v)) + ")").join(" y ") : ""}.`);
+  }
+  // meses que más cambian
+  const mm = Array.from({ length: 12 }, (_, i) => { const a = cifras(yp + "-" + pad(i + 1), yp + "-" + pad(i + 1)).ingresos, b = cifras(y + "-" + pad(i + 1), y + "-" + pad(i + 1)).ingresos; return [i, b - a]; }).filter(x => Math.abs(x[1]) >= 1);
+  const mejor = [...mm].sort((a, b) => b[1] - a[1])[0], peor = [...mm].sort((a, b) => a[1] - b[1])[0];
+  if (mejor && mejor[1] > 0) out.push(`Donde más mejoras: ${MESES[mejor[0]]} (+${eur(mejor[1])} frente a ${MESES[mejor[0]]} de ${yp}).`);
+  if (peor && peor[1] < 0) out.push(`Donde más fallas: ${MESES[peor[0]]} (−${eur(-peor[1])} frente a ${MESES[peor[0]]} de ${yp}).`);
+  if (d.instagram && dp.instagram) out.push(`Instagram: ${fmt(dp.instagram)} → ${fmt(d.instagram)} seguidores.`);
+  if (d.newsletter && dp.newsletter) out.push(`Newsletter: ${fmt(dp.newsletter)} → ${fmt(d.newsletter)} suscriptoras.`);
+  if (Object.keys(d.manual).length || Object.keys(dp.manual).length) out.push(`Alguna cifra sale de «Años sin detalle» (apuntada a mano), así que no se puede bajar a libros ni a meses.`);
+  return out;
+}
+function nComparar() {
+  const y = +view.mes.slice(0, 4), anios = Array.from({ length: 6 }, (_, i) => String(y - 5 + i));
+  const D = {}; anios.concat([String(y - 6)]).forEach(a => D[a] = datosAnio(a));
+  const n = negocio(); if (!n.notasAnio || typeof n.notasAnio !== "object") n.notasAnio = {};
+  const filas = [
+    ["Ingresos totales", "ingresos", eur], ["Amazon (ebook, papel y KENP)", "amazon", eur], ["Ejemplares vendidos en Amazon", "ejemplares", fmt], ["Páginas KENP leídas", "kenp", fmt],
+    ["Otros ingresos", "otros", eur], ["Venta directa y eventos", "directa", eur], ["Gastos", "gastos", eur, true], ["Beneficio", "beneficio", eur],
+    ["Libros publicados", "lanzamientos", v => fmt(v.length)], ["Seguidores en Instagram (fin de año)", "instagram", fmt], ["Suscriptoras newsletter (fin de año)", "newsletter", fmt]
+  ];
+  const val = (a, k) => k === "lanzamientos" ? D[a][k].length : D[a][k];
+  const celda = (a, k, f, inv) => {
+    const d = D[a]; if (!d.hay && k !== "lanzamientos") return `<td class="calc" style="color:var(--gris)">—</td>`;
+    if (!d.hay) return `<td class="calc">${f(d[k])}</td>`;
+    const prev = D[String(+a - 1)], v = val(a, k), pv = prev && prev.hay ? val(String(+a - 1), k) : null;
+    let vv = pv === null ? "" : variacion(pv, v); if (inv && vv) vv = vv.replace('"var up"', '"var tmp"').replace('"var down"', '"var up"').replace('"var tmp"', '"var down"');
+    return `<td class="calc">${f(d[k])}${d.manual[k] ? "*" : ""}<br>${vv}</td>`;
+  };
+  // mes a mes: ingresos de cada mes en cada año
+  const conDatos = anios.filter(a => D[a].hay);
+  const mesTabla = conDatos.length ? `<div class="tblwrap"><table class="tbl cmp"><thead><tr><th>Mes</th>${conDatos.map(a => `<th>${a}</th>`).join("")}</tr></thead><tbody>
+    ${MESES.map((mn, i) => `<tr><td style="text-transform:capitalize">${mn}</td>${conDatos.map(a => {
+      const v = cifras(a + "-" + pad(i + 1), a + "-" + pad(i + 1)).ingresos, pa = String(+a - 1);
+      const p = D[pa] && D[pa].hay ? cifras(pa + "-" + pad(i + 1), pa + "-" + pad(i + 1)).ingresos : null;
+      const cls = p === null || (!p && !v) ? "" : v > p ? "up" : v < p ? "down" : "";
+      return `<td class="calc ${cls ? "m" + cls : ""}">${v ? eur(v) : "—"}</td>`;
+    }).join("")}</tr>`).join("")}</tbody></table></div>
+    <p class="hint" style="margin:8px 0 0">En verde, el mes fue mejor que el mismo mes del año anterior; en rojo, peor. Las cifras apuntadas a mano en «Años sin detalle» no se pueden repartir por meses.</p>` : `<p class="empty">Todavía no hay datos de estos años.</p>`;
+  const grafica = (() => {
+    const max = Math.max(1, ...anios.map(a => Math.max(D[a].ingresos, D[a].gastos)));
+    return `<div class="cmpbars">${anios.map(a => `<div class="cb"><div class="cbars"><i class="ing" style="height:${D[a].ingresos / max * 100}%" title="Ingresos ${eur(D[a].ingresos)}"></i><i class="gas" style="height:${D[a].gastos / max * 100}%" title="Gastos ${eur(D[a].gastos)}"></i></div><b>${a}</b><span>${D[a].hay ? eur(D[a].beneficio) : "—"}</span></div>`).join("")}</div>
+      <p class="hint" style="margin:6px 0 0"><span class="dot ing"></span> Ingresos · <span class="dot gas"></span> Gastos · debajo, el beneficio</p>`;
+  })();
+  const sinDatos = anios.filter(a => !D[a].hay);
+  return `
+  <div class="card"><div class="ch"><h3>De ${anios[0]} a ${anios[5]}</h3><span class="hint">Cambia el último año con las flechas de arriba</span></div>${grafica}</div>
+  <div class="card"><h3>Año a año</h3><div class="tblwrap"><table class="tbl cmp"><thead><tr><th></th>${anios.map(a => `<th>${a}</th>`).join("")}</tr></thead><tbody>
+    ${filas.map(([t, k, f, inv]) => `<tr><td>${t}</td>${anios.map(a => celda(a, k, f, inv)).join("")}</tr>`).join("")}</tbody></table></div>
+    <p class="hint" style="margin:8px 0 0">El porcentaje compara con el año anterior. * = cifra apuntada a mano.${sinDatos.length ? " Sin datos: " + sinDatos.join(", ") + "." : ""}</p></div>
+  <div class="card"><h3>Cuándo: mes a mes</h3>${mesTabla}</div>
+  <div class="card"><h3>Por qué: qué cambió cada año</h3>
+    ${[...anios].reverse().filter(a => D[a].hay).map(a => `<div class="porque"><h4>${a} frente a ${+a - 1}</h4><ul>${porQue(a, D[a], D[String(+a - 1)]).map(x => `<li>${x}</li>`).join("")}</ul>
+      ${field("Lo que pasó en " + a + " (tus notas: cambios de portada, promociones, anuncios, vida…)", `data-s="g" data-path="negocio.notasAnio.${a}"`, n.notasAnio[a] || "", "area")}</div>`).join("") || `<p class="empty">Cuando haya datos de al menos un año, aquí verás qué subió, qué bajó y por qué.</p>`}</div>
+  <div class="card"><div class="ch"><h3>Años sin detalle</h3><span class="hint">Para los años de los que no tienes el informe de Amazon</span></div>
+    <p class="hint" style="margin:0 0 8px">Lo mejor es importar en <a href="#negocio" data-nsub="amazon">Ventas de Amazon</a> los informes de cada mes de años anteriores (en KDP: Informes › Regalías previas). Si solo sabes los totales de un año, apúntalos aquí: se usan solo cuando ese año no tiene datos detallados.</p>
+    ${tableHTML("historico", "g", [...(S.historico || [])].sort((a, b) => num(a.anio) - num(b.anio)), { addLabel: "Añadir año", preset: { anio: y - 1 }, empty: "Sin años apuntados a mano." })}</div>`;
 }
 
 /* ---------- Edición ---------- */

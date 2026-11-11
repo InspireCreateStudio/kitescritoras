@@ -297,3 +297,25 @@ select.pill { appearance: none; -webkit-appearance: none; border-radius: 999px !
 }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Comparar años */
+.tbl.cmp td.calc { white-space: nowrap; vertical-align: top; }
+.var { font-size: .72rem; font-weight: 700; color: var(--gris); }
+.var.up { color: var(--ok); }
+.var.down { color: var(--mal); }
+.tbl.cmp td.mup { background: var(--ok-bg); }
+.tbl.cmp td.mdown { background: var(--mal-bg); }
+.cmpbars { display: flex; gap: 10px; align-items: flex-end; overflow-x: auto; padding: 4px 0; }
+.cmpbars .cb { flex: 1 0 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: .78rem; }
+.cmpbars .cbars { height: 140px; width: 100%; display: flex; gap: 4px; align-items: flex-end; justify-content: center; border-bottom: 1px solid var(--linea); }
+.cmpbars i { display: block; width: 40%; max-width: 26px; border-radius: 4px 4px 0 0; min-height: 1px; }
+.cmpbars i.ing, .dot.ing { background: var(--rosa); }
+.cmpbars i.gas, .dot.gas { background: var(--arena); }
+.cmpbars span { color: var(--gris); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: middle; }
+.porque { border-top: 1px solid var(--linea); padding: 10px 0; }
+.porque:first-of-type { border-top: 0; }
+.porque h4 { margin: 0 0 6px; }
+.porque ul { margin: 0 0 8px; padding-left: 18px; }
+.porque li { margin: 2px 0; }
+.tbl.cmp th:not(:first-child) { text-align: right; }
