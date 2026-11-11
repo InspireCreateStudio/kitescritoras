@@ -1145,7 +1145,23 @@ document.addEventListener("change", e => {
     leerPortada(f).then(url => { P().portada = url; save(); render(); toast("Portada guardada"); }).catch(() => toast("No he podido leer esa imagen. Prueba con un JPG o PNG."));
     return;
   }
-  if (el.matches("select, input[type=date]")) { applyEdit(el); save(); render(); return; }
+  // Fechas: se guardan al momento, pero la pantalla se redibuja al salir del campo.
+  // Si se redibujara al cambiar, al teclear el año (2-0-2-7) se perdería el campo a mitad.
+  if (el.matches("input[type=date]")) {
+    applyEdit(el); save();
+    if (document.activeElement !== el) { render(); return; }
+    if (!el.dataset.esperando) {
+      el.dataset.esperando = "1";
+      el.addEventListener("blur", ev => {
+        const otro = ev.relatedTarget;
+        // Si salta a otro campo o botón de la pantalla, no se redibuja para no quitarle el foco
+        if (otro && otro.closest && otro.closest("#view") && otro.matches("input, select, textarea, button")) return;
+        render();
+      }, { once: true });
+    }
+    return;
+  }
+  if (el.matches("select")) { applyEdit(el); save(); render(); return; }
   if (el.type === "checkbox" && el.dataset.path) { render(); return; }
   if (el.dataset.k === "objetivoPalabras" || el.closest(".tiles") === null && ["pvp", "unidades", "costeEjemplar"].includes(el.dataset.k)) { render(); }
 });
