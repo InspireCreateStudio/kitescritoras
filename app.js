@@ -524,7 +524,8 @@ function perfil() {
   const pr = S.perfil;
   ["nombre", "usuario", "genero", "foto", "bio"].forEach(k => { if (pr[k] == null) pr[k] = ""; });
   if (!pr.enlaces || typeof pr.enlaces !== "object") pr.enlaces = {};
-  ["instagram", "tiktok", "web"].forEach(k => { if (pr.enlaces[k] == null) pr.enlaces[k] = ""; });
+  ["instagram", "tiktok", "amazon", "web"].forEach(k => { if (pr.enlaces[k] == null) pr.enlaces[k] = ""; });
+  if (!Array.isArray(pr.otros)) pr.otros = [];
   return pr;
 }
 function ajustes() {
@@ -558,8 +559,9 @@ function saludo() { const h = new Date().getHours(); return h < 6 ? "Buenas noch
 function tarjetaPerfil() {
   const pr = perfil();
   const nom = pr.nombre.trim();
-  const links = [["instagram", "Instagram"], ["tiktok", "TikTok"], ["web", "Web"]].filter(([k]) => pr.enlaces[k].trim())
-    .map(([k, t]) => `<a href="${esc(enlaceRed(k, pr.enlaces[k]))}" target="_blank" rel="noopener">${t}</a>`).join("");
+  const links = [...[["instagram", "Instagram"], ["tiktok", "TikTok"], ["amazon", "Amazon"], ["web", "Web"]].filter(([k]) => String(pr.enlaces[k] || "").trim())
+    .map(([k, t]) => [t, enlaceRed(k, pr.enlaces[k])]), ...pr.otros.filter(o => o && String(o.u || "").trim()).map(o => [o.t || "Enlace", enlaceRed("", o.u)])]
+    .map(([t, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>`).join("");
   return `<p class="saludo">${saludo()}${nom ? ", " + esc(nom.split(/\s+/)[0]) : ""}</p>
   <div class="card perfil-card">
     <div class="avatar">${pr.foto ? `<img src="${pr.foto}" alt="">` : esc(inicial(nom))}</div>
@@ -638,7 +640,10 @@ function vAjustes() {
       </div>
       <div style="display:flex;flex-direction:column;gap:12px;flex:1;min-width:0">
         <div class="fgrid">${field("Nombre de autora", gp("perfil.nombre"), pr.nombre)}${field("Usuario", gp("perfil.usuario"), pr.usuario)}${field("Género", gp("perfil.genero"), pr.genero)}</div>
-        <div class="fgrid">${field("Instagram (usuario o enlace)", gp("perfil.enlaces.instagram"), pr.enlaces.instagram)}${field("TikTok (usuario o enlace)", gp("perfil.enlaces.tiktok"), pr.enlaces.tiktok)}${field("Web", gp("perfil.enlaces.web"), pr.enlaces.web)}</div>
+        <div class="fgrid">${field("Instagram (usuario o enlace)", gp("perfil.enlaces.instagram"), pr.enlaces.instagram)}${field("TikTok (usuario o enlace)", gp("perfil.enlaces.tiktok"), pr.enlaces.tiktok)}${field("Tu perfil de autora en Amazon", gp("perfil.enlaces.amazon"), pr.enlaces.amazon)}${field("Web", gp("perfil.enlaces.web"), pr.enlaces.web)}</div>
+        <div><span class="hint">Más enlaces (newsletter, Goodreads, tu tienda…)</span>
+          ${pr.otros.map((o, i) => `<div class="fgrid" style="grid-template-columns:1fr 2fr auto;align-items:end;margin-top:6px">${field("Nombre", gp("perfil.otros." + i + ".t"), o.t)}${field("Enlace", gp("perfil.otros." + i + ".u"), o.u)}<button class="del" type="button" data-pfdel="${i}" aria-label="Quitar enlace">×</button></div>`).join("")}
+          <button class="btn ghost sm" type="button" id="pfAddLink" style="margin-top:8px">+ Añadir enlace</button></div>
         <p class="hint" style="margin:0">Tu nombre sale en el saludo de «Mi mes». Si en la ficha de un libro no pones autora, se usa este.</p>
       </div>
     </div></div>
@@ -1086,7 +1091,8 @@ function importarNovelia(d, destino) {
   if (d.perfil && typeof d.perfil === "object") {
     const pr = perfil();
     ["nombre", "usuario", "genero", "foto"].forEach(k => { if (!String(pr[k]).trim() && d.perfil[k]) pr[k] = d.perfil[k]; });
-    ["instagram", "tiktok", "web"].forEach(k => { const v = d.perfil.enlaces && d.perfil.enlaces[k]; if (!String(pr.enlaces[k]).trim() && v) pr.enlaces[k] = v; });
+    ["instagram", "tiktok", "amazon", "web"].forEach(k => { const v = d.perfil.enlaces && d.perfil.enlaces[k]; if (!String(pr.enlaces[k] || "").trim() && v) pr.enlaces[k] = v; });
+    if (!pr.otros.length && Array.isArray(d.perfil.otros)) pr.otros = d.perfil.otros.filter(o => o && o.u).map(o => ({ t: o.t || "", u: o.u }));
   }
   if (num(n.palabras) > 0) p.palabrasEscritas = Math.round(num(n.palabras));
   if (num(n.objetivo) > 0) p.objetivoPalabras = Math.round(num(n.objetivo));
@@ -2053,6 +2059,8 @@ document.addEventListener("click", e => {
   if (d.dia) { view.diaSel = view.diaSel === d.dia ? "" : d.dia; render(); return; }
   if (d.caltam) { ajustes().calTam = d.caltam; save(); render(); return; }
   if (d.acento) { ajustes().acento = d.acento; aplicarAcento(); save(); render(); return; }
+  if (t.id === "pfAddLink") { perfil().otros.push({ t: "", u: "" }); save(); render(); const ins = $$('[data-path^="perfil.otros."][data-path$=".t"]'); if (ins.length) ins[ins.length - 1].focus(); return; }
+  if (t.dataset && t.dataset.pfdel !== undefined) { const pr = perfil(), i = +t.dataset.pfdel, prev = pr.otros[i]; pr.otros.splice(i, 1); save(); render(); toast("Enlace quitado", () => { pr.otros.splice(i, 0, prev); }); return; }
   if (t.id === "quitarFoto") { const pr = perfil(), prev = pr.foto; pr.foto = ""; save(); render(); toast("Foto quitada", () => { pr.foto = prev; }); return; }
   if (t.id === "ajCopia") { $("#btnBackup").click(); return; }
   if (t.id === "ajReset") { $("#btnReset").click(); return; }
