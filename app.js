@@ -23,10 +23,25 @@ const dayLabel = s => { if (!s) return "Sin fecha"; const d = new Date(s + "T12:
 const words = t => (String(t || "").trim().match(/\S+/g) || []).length;
 
 /* ---------- Catálogos ---------- */
-const FASES = ["Escritura", "Edición y diseño", "Publicación", "Preventa y promoción", "Prensa y colaboraciones", "Envíos"];
+const FASES = ["Escritura", "Edición y diseño", "Publicación", "Preventa y promoción", "Prensa y colaboraciones", "Envíos", "Después del lanzamiento"];
+// Días respecto al lanzamiento (día D) en los que cae cada fase, para repartir fechas
+const VENTANAS = { "Escritura": [-180, -121], "Edición y diseño": [-120, -61], "Publicación": [-60, -31], "Preventa y promoción": [-45, -1], "Prensa y colaboraciones": [-30, 0], "Envíos": [-14, 7], "Después del lanzamiento": [1, 30] };
 const BEATS = ["Planteamiento", "Detonante", "Primer cambio de rumbo", "Desarrollo", "Segundo cambio de rumbo", "Clímax", "Final"];
+const FASES_PROD = ["Primer borrador", "Reescritura", "Lectoras beta", "Corrección", "Revisión final", "Portada", "Maquetación ebook", "Maquetación papel", "Subido a KDP"];
+const MODULOS_APLUS = {
+  "Imagen de cabecera con texto": "970 × 600 px",
+  "Imagen con texto superpuesto": "1940 × 600 px (mínimo 970 × 300). El texto va en el recuadro, no en la imagen",
+  "Imagen a la izquierda y texto": "600 × 600 px (300 ppp)",
+  "Imagen a la derecha y texto": "600 × 600 px (300 ppp)",
+  "Tres imágenes con texto": "600 × 600 px cada una (mínimo 300 × 300)",
+  "Comparativa (tus otros libros)": "Portadas de mínimo 150 × 300 px. Hasta 5 libros",
+  "Solo texto": "Hasta 6000 caracteres",
+  "Logo o firma de autora": "600 × 180 px"
+};
+const PROHIBIDAS = ["gratis", "free", "novedad", "oferta", "rebaja", "descuento", "mejor", "best seller", "bestseller", "más vendido", "kindle unlimited", "kdp select", "kindle", "libro", "libros", "ebook", "disponible"];
 const TONES = {
-  "Hecho": "ok", "Publicado": "ok", "Pagado": "ok", "Recibido": "ok", "Bueno": "ok", "Analizado": "ok", "Salió en prensa": "ok", "Ingreso": "ok",
+  "Hecho": "ok", "Publicado": "ok", "Pagado": "ok", "Recibido": "ok", "Bueno": "ok", "Analizado": "ok", "Salió en prensa": "ok", "Ingreso": "ok", "Reseña hecha": "ok",
+  "Preventa": "mid", "En revisión": "mid", "Borrador": "neu", "Sin reseña": "neu",
   "En curso": "mid", "Programado": "mid", "Diseñado": "mid", "Copy listo": "mid", "Enviado": "mid", "Nota enviada": "mid", "Respondió": "mid", "Satisfactorio": "mid", "A cuenta": "mid",
   "Pendiente": "neu", "Idea": "neu", "Por contactar": "neu", "Regalo": "warm",
   "Incidencia": "bad", "Malo": "bad", "No repetir": "bad", "Sin respuesta": "bad", "Gasto": "bad",
@@ -106,6 +121,28 @@ const COLS = {
     { k: "tipo", t: "Tipo", type: "select", opts: ["Principal", "Secundaria"] },
     { k: "desc", t: "Cómo es / qué pasa aquí", type: "area", w: 320 }
   ],
+  fases: [
+    { k: "nombre", t: "Fase", w: 190 },
+    { k: "estado", t: "Estado", type: "pill", opts: ["Pendiente", "En curso", "Hecho"] },
+    { k: "quien", t: "Quién", w: 130 },
+    { k: "fecha", t: "Fecha", type: "date", w: 140 },
+    { k: "archivo", t: "Archivo bueno / versión", w: 260 }
+  ],
+  betas: [
+    { k: "nombre", t: "Nombre", w: 150 },
+    { k: "papel", t: "Papel", type: "select", opts: ["Lectora beta", "Lectora ARC", "Correctora", "Sensitivity reader", "Otra"] },
+    { k: "enviado", t: "Enviado", type: "date", w: 140 },
+    { k: "devuelto", t: "Devuelto", type: "date", w: 140 },
+    { k: "caps", t: "Capítulos", w: 80 },
+    { k: "notas", t: "Qué te ha dicho", type: "area", w: 240 },
+    { k: "resena", t: "Reseña", type: "pill", opts: ["Sin reseña", "Reseña hecha"] }
+  ],
+  aplus: [
+    { k: "tipo", t: "Módulo", type: "select", opts: Object.keys(MODULOS_APLUS) },
+    { k: "_med", t: "Medida", calc: r => MODULOS_APLUS[r.tipo] || "" },
+    { k: "titulo", t: "Titular", w: 180 },
+    { k: "texto", t: "Texto del módulo", type: "area", w: 280 }
+  ],
   frases: [
     { k: "frase", t: "Frase", type: "area", w: 300 },
     { k: "personaje", t: "Personaje", w: 130 },
@@ -138,7 +175,12 @@ const TAREAS_KIT = [
   ["Prensa y colaboraciones", "E-mail a librerías", "E-mail"], ["Prensa y colaboraciones", "Llevar libros a librerías", "En mano"],
   ["Envíos", "Marcapáginas a imprenta", "360imprimir"], ["Envíos", "Imprenta edición especial", "Imprenta"], ["Envíos", "Regalos para los envíos", "Tiendas online"],
   ["Envíos", "Sobres para envíos", "Tiendas online"], ["Envíos", "Etiquetas de envío", "Canva / Packlink"], ["Envíos", "Códigos de envío ordinario", "Correos"],
-  ["Envíos", "Preparar sobres y paquetes", "En mano"], ["Envíos", "Enviar pedidos", "Correos"], ["Envíos", "Actualizar pedidos con nº de seguimiento", "Kit Escritoras"]
+  ["Envíos", "Preparar sobres y paquetes", "En mano"], ["Envíos", "Enviar pedidos", "Correos"], ["Envíos", "Actualizar pedidos con nº de seguimiento", "Kit Escritoras"],
+  ["Publicación", "Revisar la ficha de Amazon: precio, categorías y A+", "KDP"],
+  ["Preventa y promoción", "Buscar lectoras ARC y bookstagrammers", "Redes"], ["Preventa y promoción", "Enviar los ejemplares anticipados (ARC)", "E-mail"],
+  ["Preventa y promoción", "Página del libro en la web", "Web"],
+  ["Después del lanzamiento", "Enlaces de compra en la web y en la bio", "Web"], ["Después del lanzamiento", "Recordar a las lectoras ARC que dejen reseña", "E-mail"],
+  ["Después del lanzamiento", "Mirar ventas y ranking", "KDP"], ["Después del lanzamiento", "Balance del lanzamiento", "Kit Escritoras"]
 ];
 const COSTES_KIT = [
   ["Impresión de libros (todos)", 456.85, "Incluye el transporte desde la imprenta o Amazon."], ["Corrección", 200, ""], ["Portada digital", 50, ""], ["Portada papel", 80, ""],
@@ -159,7 +201,13 @@ function newProject(titulo, ejemplo) {
     legales: LEGAL_TPL, epigrafe: "", dedicatoria: "", dedicatoriaFirma: "",
     escritura: {},
     tareas: TAREAS_KIT.map(([fase, tarea, herr]) => ({ id: uid(), fase, tarea, herr, fecha: "", importancia: "Media", estado: "Pendiente", coste: "", notas: "" })),
-    pedidos: [], costes: [], unidades: 100, pvp: 18, costeEjemplar: 4.57
+    pedidos: [], costes: [], unidades: 100, pvp: 18, costeEjemplar: 4.57,
+    // Ficha del libro y publicación
+    autora: "", subtitulo: "", serie: "", numero: "", subgenero: "", comparables: "", avisos: "", pitch: "", sinopsisCorta: "",
+    portada: "", palabrasEscritas: "",
+    kdpDesc: "", enlaces: { amazon: "", papel: "", otros: "" }, formatos: { ebook: {}, blanda: {}, dura: {} }, aplus: [],
+    fases: FASES_PROD.map(n => ({ id: uid(), nombre: n, estado: "Pendiente", quien: "", fecha: "", archivo: "" })), betas: [],
+    lanzFecha: "", preventaFecha: ""
   };
   if (!ejemplo) { p.costes = [{ id: uid(), concepto: "Impresión de libros (todos)", importe: "", notas: "" }]; return p; }
   return p;
@@ -194,16 +242,17 @@ function seed() {
     { id: uid(), nombre: "Preventa ejemplo 2", dedicatoria: "", contacto: "", direccion: "", envio: "Certificado", pago: "Pendiente", importe: 18, costeEnvio: 0, seguimiento: "", estado: "Pendiente" },
     { id: uid(), nombre: "Depósito legal", dedicatoria: "", contacto: "", direccion: "", envio: "En mano", pago: "Regalo", importe: 0, costeEnvio: 0, seguimiento: "", estado: "Pendiente" }
   ];
-  // Plan de escritura de ejemplo en el mes actual: 1.000 palabras de lunes a viernes
-  const pattern = [1100, 950, 0, 1250, 1000, 820, 1300, 1050];
-  let k = 0;
-  monthDays(ym).forEach(d => {
-    if (dow(d) < 5) {
-      const e = { obj: 1000, real: "", caps: "" };
-      if (d < TODAY) { e.real = pattern[k % pattern.length]; e.caps = e.real ? "Cap. " + (k + 1) : ""; k++; }
-      p.escritura[d] = e;
-    }
+  // Ficha y publicación de ejemplo
+  const dD = new Date(TODAY + "T12:00:00"); dD.setDate(dD.getDate() + 60);
+  Object.assign(p, {
+    autora: "Tu nombre de autora", serie: "Agencia Rumbo", numero: "1", subgenero: "Comedia romántica contemporánea",
+    comparables: "Emily Henry, Ali Hazelwood", pitch: "Ella necesita el ascenso para quedarse. Él, para irse. Solo uno puede ganarlo.",
+    sinopsisCorta: "Lucía y Dani llevan tres años compitiendo por todo en la agencia de viajes. Ahora su jefa les encarga organizar juntos su boda en una isla… y el ascenso será para quien lo haga mejor.",
+    palabrasEscritas: 64200, lanzFecha: ymd(dD)
   });
+  ["Hecho", "Hecho", "En curso"].forEach((e, i) => { p.fases[i].estado = e; });
+  p.fases[1].archivo = "MI NOVELA - 2ª versión.docx";
+  p.betas = [{ id: uid(), nombre: "Lectora beta de ejemplo", papel: "Lectora beta", enviado: ym + "-02", devuelto: "", caps: "1-15", notas: "", resena: "Sin reseña" }];
   const posts = [
     [3, "Instagram", "Post", "Revelación de portada", "Publicado"], [6, "TikTok", "Reel", "Los tropos de la novela en 15 segundos", "Programado"],
     [10, "Instagram", "Stories", "Encuesta: ¿equipo Lucía o equipo Dani?", "Diseñado"], [14, "Instagram", "Carrusel", "5 frases del primer capítulo", "Copy listo"],
@@ -270,8 +319,10 @@ function normalize(st) {
   st.proyectos.forEach(p => {
     const base = newProject(p.titulo);
     Object.keys(base).forEach(k => { if (p[k] === undefined || p[k] === null) p[k] = base[k]; });
-    ["escaleta", "personajes", "localizaciones", "frases", "tareas", "pedidos", "costes"].forEach(k => { if (!Array.isArray(p[k])) p[k] = base[k]; });
+    ["escaleta", "personajes", "localizaciones", "frases", "tareas", "pedidos", "costes", "fases", "betas", "aplus"].forEach(k => { if (!Array.isArray(p[k])) p[k] = base[k]; });
     if (!p.escritura || typeof p.escritura !== "object" || Array.isArray(p.escritura)) p.escritura = {};
+    ["enlaces", "formatos"].forEach(k => { if (!p[k] || typeof p[k] !== "object" || Array.isArray(p[k])) p[k] = base[k]; });
+    ["ebook", "blanda", "dura"].forEach(k => { if (!p.formatos[k] || typeof p.formatos[k] !== "object") p.formatos[k] = {}; });
     if (!Array.isArray(p.kdp)) p.kdp = [];
     while (p.kdp.length < 7) p.kdp.push("");
   });
@@ -381,31 +432,13 @@ function tile(t, v, d, cls = "") { return `<div class="tile ${cls}"><div class="
 function bar(pct, cls = "") { return `<div class="bar ${cls}"><i style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>`; }
 
 /* ---------- Cálculos ---------- */
-function escrituraStats(p, ym) {
-  const days = monthDays(ym);
-  let obj = 0, real = 0, diasObj = 0, diasOk = 0;
-  days.forEach(d => { const e = p.escritura[d]; if (!e) return; obj += num(e.obj); real += num(e.real); if (num(e.obj) > 0) { diasObj++; if (num(e.real) >= num(e.obj)) diasOk++; } });
-  let total = 0; Object.values(p.escritura).forEach(e => total += num(e.real));
-  // racha: días seguidos con palabras hasta hoy (si hoy aún no hay, cuenta desde ayer)
-  let racha = 0; const d = new Date(TODAY + "T12:00:00");
-  if (!num((p.escritura[TODAY] || {}).real)) d.setDate(d.getDate() - 1);
-  // los días de descanso (sin meta ni palabras) no rompen la racha
-  for (let i = 0; i < 400; i++) {
-    const e = p.escritura[ymd(d)] || {};
-    if (num(e.real) > 0) racha++;
-    else if (num(e.obj) > 0 || ymd(d) < "2000") break;
-    else if (!Object.keys(p.escritura).some(k => k < ymd(d))) break;
-    d.setDate(d.getDate() - 1);
-  }
-  return { obj, real, diasObj, diasOk, total, racha };
+// Palabras del manuscrito: las apuntadas (o traídas de Novelia); si no hay, las del calendario antiguo
+function palabras(p) {
+  if (num(p.palabrasEscritas) > 0) return num(p.palabrasEscritas);
+  let t = 0; Object.values(p.escritura || {}).forEach(e => t += num(e && e.real)); return t;
 }
-function dayState(e, d) {
-  if (!e || (!num(e.obj) && !num(e.real))) return d < TODAY ? "" : "";
-  if (num(e.obj) && num(e.real) >= num(e.obj)) return "done";
-  if (num(e.real) > 0) return "part";
-  if (num(e.obj) && d < TODAY) return "miss";
-  return "";
-}
+function diasA(fecha) { if (!fecha) return null; return Math.round((new Date(fecha + "T12:00:00") - new Date(TODAY + "T12:00:00")) / 86400000); }
+function sumarDias(fecha, n) { const d = new Date(fecha + "T12:00:00"); d.setDate(d.getDate() + n); return ymd(d); }
 function costesStats(p) {
   const total = p.costes.reduce((s, r) => s + num(r.importe), 0);
   const uds = num(p.unidades) || 0;
@@ -434,10 +467,12 @@ function pedidosStats(p) {
 
 /* ---------- Vistas ---------- */
 const ROUTES = [
-  ["inicio", "Mi mes"], ["novela", "Novela"], ["escritura", "Escritura"], ["lanzamiento", "Lanzamiento"],
-  ["redes", "Redes"], ["pedidos", "Pedidos"], ["cuentas", "Cuentas"], ["prensa", "Prensa y colabs"]
+  ["inicio", "Mi mes"], ["libro", "Libro"], ["kdp", "Amazon KDP"], ["produccion", "Producción"], ["lanzamiento", "Lanzamiento"],
+  ["redes", "Redes y citas"], ["pedidos", "Pedidos"], ["cuentas", "Cuentas"], ["prensa", "Prensa y colabs"], ["web", "Web"]
 ];
-const MONTHLY = ["inicio", "escritura", "redes", "cuentas", "lanzamiento"];
+// Direcciones de versiones anteriores
+const ALIAS = { novela: "libro", escritura: "inicio" };
+const MONTHLY = ["inicio", "redes", "cuentas", "lanzamiento"];
 
 function renderNav() {
   $("#nav").innerHTML = ROUTES.map(([k, t], i) => `<a href="#${k}" ${view.route === k ? 'aria-current="page"' : ""}><span class="n">${i + 1}</span>${t}</a>`).join("");
@@ -449,7 +484,7 @@ function renderNav() {
 function render() {
   if (!S) return;
   renderNav();
-  const fn = { inicio: vInicio, novela: vNovela, escritura: vEscritura, lanzamiento: vLanzamiento, redes: vRedes, pedidos: vPedidos, cuentas: vCuentas, prensa: vPrensa }[view.route] || vInicio;
+  const fn = { inicio: vInicio, libro: vLibro, kdp: vKdp, produccion: vProduccion, lanzamiento: vLanzamiento, redes: vRedes, pedidos: vPedidos, cuentas: vCuentas, prensa: vPrensa, web: vWeb }[view.route] || vInicio;
   const y = window.scrollY;
   try {
     $("#view").innerHTML = fn();
@@ -464,17 +499,24 @@ function render() {
 
 function afterRender() {
   if (view.route === "cuentas") drawChart();
+  if (view.route === "kdp") pintarDesc();
+  if (view.route === "redes") pintarTarjeta();
   $$("#view textarea").forEach(autosize);
 }
 function autosize(t) { if (!t.closest(".tbl")) return; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 220) + "px"; }
 
+/* Campos con ruta (formatos.ebook.precio) y contadores de caracteres */
+const getPath = (o, path) => { for (const k of path.split(".")) { if (o == null) return ""; o = o[k]; } return o == null ? "" : o; };
+const pp = path => `data-s="p" data-path="${path}"`;
+const cnt = (k, v, max) => `<em class="count${String(v || "").length > max ? " over" : ""}" data-countfor="${k}">${String(v || "").length}/${max}</em>`;
+const fieldMax = (label, k, v, max, type = "area") => field(label, `${pf(k)} data-max="${max}"`, v, type, cnt(k, v, max));
+
 /* 1. Mi mes */
 function vInicio() {
   const p = P(), ym = view.mes;
-  const es = escrituraStats(p, ym);
-  const pct = es.obj ? Math.round(es.real / es.obj * 100) : 0;
   const hechas = p.tareas.filter(t => t.estado === "Hecho").length;
   const pctT = p.tareas.length ? Math.round(hechas / p.tareas.length * 100) : 0;
+  const fh = p.fases.filter(f => f.estado === "Hecho").length;
   const vm = ventasMes(ym);
   const ps = pedidosStats(p);
   const postsMes = S.posts.filter(x => monthOf(x.fecha) === ym).sort((a, b) => a.fecha.localeCompare(b.fecha));
@@ -486,160 +528,155 @@ function vInicio() {
     if (a.estado !== b.estado) return a.estado === "En curso" ? -1 : 1;
     return (prio[a.importancia] ?? 1) - (prio[b.importancia] ?? 1);
   }).slice(0, 7);
-  const totalPct = p.objetivoPalabras ? Math.round(es.total / num(p.objetivoPalabras) * 100) : 0;
+  const pal = palabras(p);
+  const totalPct = num(p.objetivoPalabras) ? Math.round(pal / num(p.objetivoPalabras) * 100) : 0;
   const nextPosts = postsMes.filter(x => x.fecha >= (monthOf(TODAY) === ym ? TODAY : ym + "-01")).slice(0, 5);
+  const faltan = diasA(p.lanzFecha);
+  const lz = faltan === null ? tile("Lanzamiento", "Sin fecha", `<a href="#lanzamiento">Pon el día D</a>`, "")
+    : faltan > 0 ? tile("Faltan", faltan + (faltan === 1 ? " día" : " días"), "para el lanzamiento · " + dayLabel(p.lanzFecha), faltan <= 14 ? "warn" : "lav")
+    : faltan === 0 ? tile("Lanzamiento", "¡Hoy!", "es el día D", "ok") : tile("Lanzado", dayLabel(p.lanzFecha), "hace " + (-faltan) + " días", "ok");
 
   return `
   <div class="head"><div><div class="eyebrow">${esc(p.titulo)}</div><h1 style="text-transform:capitalize">${mesLabel(ym)}</h1>
-    <p>Lo que llevas este mes de escritura, lanzamiento, redes y ventas. Cambia de mes con las flechas de arriba.</p></div></div>
+    <p>Cómo va tu libro: producción, lanzamiento, redes y ventas. Cambia de mes con las flechas de arriba.</p></div></div>
   <div class="tiles">
-    ${tile("Palabras del mes", fmt(es.real), `de ${fmt(es.obj)} previstas · ${pct}%`, pct >= 100 ? "ok" : pct >= 60 ? "" : es.obj ? "warn" : "")}
-    ${tile("Racha", es.racha + (es.racha === 1 ? " día" : " días"), "seguidos escribiendo", es.racha >= 3 ? "ok" : "")}
-    ${tile("Lanzamiento", pctT + "%", `${hechas} de ${p.tareas.length} tareas hechas`, "lav")}
+    ${lz}
+    ${tile("Checklist", pctT + "%", `${hechas} de ${p.tareas.length} tareas hechas`, "lav")}
+    ${tile("Producción", `${fh} / ${p.fases.length}`, "fases hechas", fh === p.fases.length && fh ? "ok" : "")}
     ${tile("Redes del mes", pubs + " / " + postsMes.length, "publicaciones hechas", "")}
     ${tile("Ventas netas", eur(vm.neto), `${eur(vm.ing)} regalías · ${eur(vm.gas)} anuncios`, vm.neto < 0 ? "bad" : vm.neto > 0 ? "ok" : "")}
     ${tile("Pedidos", ps.porEnviar + " por enviar", `${eur(ps.porCobrar)} por cobrar`, ps.porEnviar ? "warn" : "")}
   </div>
-  <div class="card"><div class="ch"><h3>Progreso del manuscrito</h3><span class="hint">${fmt(es.total)} de ${fmt(p.objetivoPalabras)} palabras · ${totalPct}%</span></div>${bar(totalPct, totalPct >= 100 ? "ok" : "")}</div>
+  <div class="card"><div class="ch"><h3>Manuscrito</h3><span class="hint">${fmt(pal)} de ${fmt(p.objetivoPalabras)} palabras · ${totalPct}% · <a href="#libro">cambiar</a></span></div>${bar(totalPct, totalPct >= 100 ? "ok" : "")}</div>
   <div class="grid g2">
     <div class="card"><div class="ch"><h3>Próximas tareas</h3><a href="#lanzamiento" class="hint">Ver todas</a></div>
       <div class="list">${prox.length ? prox.map(t => `<div class="li"><input type="checkbox" data-done="${t.id}" aria-label="Marcar ${esc(t.tarea)} como hecha">
         <div class="grow"><div>${esc(t.tarea)}</div><div class="meta">${esc(t.fase)} · ${t.fecha ? dayLabel(t.fecha) : "sin fecha"}${t.herr ? " · " + esc(t.herr) : ""}</div></div>
-        <span class="chip ${tone(t.estado === "En curso" ? "En curso" : t.importancia)}">${esc(t.estado === "En curso" ? "En curso" : t.importancia)}</span></div>`).join("") : `<div class="empty">¡Todo hecho! 🎉</div>`}</div></div>
+        ${t.fecha && t.fecha < TODAY ? `<span class="chip t-bad">Atrasada</span>` : `<span class="chip ${tone(t.estado === "En curso" ? "En curso" : t.importancia)}">${esc(t.estado === "En curso" ? "En curso" : t.importancia)}</span>`}</div>`).join("") : `<div class="empty">¡Todo hecho! 🎉</div>`}</div></div>
     <div class="card"><div class="ch"><h3>Próximas publicaciones</h3><a href="#redes" class="hint">Abrir calendario</a></div>
       <div class="list">${nextPosts.length ? nextPosts.map(x => `<div class="li"><div style="width:52px" class="meta">${dayLabel(x.fecha)}</div>
         <div class="grow"><div>${esc(x.contenido || "Sin título")}</div><div class="meta">${esc(x.red)} · ${esc(x.tipo)}</div></div><span class="chip ${tone(x.estado)}">${esc(x.estado)}</span></div>`).join("") : `<div class="empty">No hay publicaciones previstas este mes.</div>`}</div></div>
   </div>`;
 }
 
-/* 2. Novela */
-function vNovela() {
+/* 2. Libro: ficha, sinopsis y páginas de cortesía */
+function vLibro() {
   const p = P();
-  const kdp = p.kdp.map((v, i) => `<label class="field"><span>Casilla ${i + 1}<em class="count ${v.length > 50 ? "over" : ""}" data-count="kdp${i}">${v.length}/50</em></span><input type="text" data-s="p" data-arr="kdp" data-i="${i}" value="${esc(v)}" maxlength="80"></label>`).join("");
-  const chars = p.personajes.map(c => {
-    const a = k => bindAttrs("p", "personajes", c.id, k);
-    const sel = ["Protagonista", "Interés amoroso", "Secundario", "Antagonista"].map(o => `<option${o === c.rol ? " selected" : ""}>${o}</option>`).join("");
-    return `<div class="char r-${esc((c.rol || "").split(" ")[0])}" data-row="${c.id}">
-      <div class="top2"><input class="nm" type="text" ${a("nombre")} value="${esc(c.nombre)}" aria-label="Nombre" placeholder="Nombre">
-      <button class="iconbtn" type="button" data-del="${c.id}" data-s="p" data-l="personajes" aria-label="Eliminar personaje">×</button></div>
-      <label class="field"><span>Papel</span><select ${a("rol")}>${sel}</select></label>
-      <div class="row">${field("Edad", a("edad"), c.edad)}${field("Trabajo", a("trabajo"), c.trabajo)}</div>
-      ${field("Musa / muso", a("musa"), c.musa)}
-      ${field("Conflicto interno", a("conflicto"), c.conflicto)}
-      ${field("Aesthetic", a("aesthetic"), c.aesthetic)}
-      ${field("Notas", a("notas"), c.notas, "area")}
-    </div>`;
-  }).join("");
-  const beats = p.escaleta.map(b => `<div class="beat"><div class="bn">${esc(b.nombre)}</div>
-    <textarea ${bindAttrs("p", "escaleta", b.id, "texto")} aria-label="${esc(b.nombre)}" placeholder="¿Qué pasa aquí?">${esc(b.texto)}</textarea>
-    <input type="text" ${bindAttrs("p", "escaleta", b.id, "caps")} value="${esc(b.caps)}" placeholder="Capítulos" aria-label="Capítulos de ${esc(b.nombre)}"></div>`).join("");
   return `
-  <div class="head"><div><div class="eyebrow">Tu novela</div><h1>${esc(p.titulo || "Sin título")}</h1><p>La biblia de la historia: idea, escaleta, personajes, sinopsis y lo que necesitas para Amazon.</p></div>
-    <button class="btn ghost sm" type="button" id="btnDelProj">Eliminar esta novela</button></div>
-  <div class="card"><h3>La historia</h3>
-    <div class="fgrid">${field("Título", pf("titulo"), p.titulo)}${field("Género", pf("genero"), p.genero)}${field("Tropos", pf("tropos"), p.tropos)}${field("Objetivo de palabras", pf("objetivoPalabras"), p.objetivoPalabras, "number")}</div>
-    <div class="grid g2">${field("Idea general", pf("idea"), p.idea, "area")}${field("Conflicto", pf("conflicto"), p.conflicto, "area")}${field("Resolución", pf("resolucion"), p.resolucion, "area")}${field("Arco de transformación", pf("arco"), p.arco, "area")}</div>
-    ${field("Aesthetic / vision board", pf("aesthetic"), p.aesthetic, "area")}
+  <div class="head"><div><div class="eyebrow">Ficha del libro</div><h1>${esc(p.titulo || "Sin título")}</h1><p>Los datos que vas a usar en Amazon, en redes, en tu web y en la prensa.</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" type="button" id="btnNovelia">Traer de Novelia Studio</button><button class="btn ghost sm" type="button" id="btnDelProj">Eliminar esta novela</button></div></div>
+  <div class="libro">
+    <div class="card portada-card">
+      <div class="portada${p.portada ? "" : " vacia"}">${p.portada ? `<img src="${p.portada}" alt="Portada">` : "<span>Sin portada</span>"}</div>
+      <label class="btn ghost sm" style="justify-content:center">${p.portada ? "Cambiar portada" : "Subir portada"}<input type="file" id="fPortada" accept="image/*" style="display:none"></label>
+      ${p.portada ? `<button class="linkbtn" type="button" id="quitarPortada">Quitar portada</button>` : ""}
+      <p class="hint" style="margin:0;text-align:center">KDP recomienda 1600 × 2560 px. Aquí se guarda una copia pequeña para tus tarjetas y tu web.</p>
+    </div>
+    <div class="card"><h3>La ficha</h3>
+      <div class="fgrid">${field("Título", pf("titulo"), p.titulo)}${field("Subtítulo", pf("subtitulo"), p.subtitulo)}${field("Autora (nombre de pluma)", pf("autora"), p.autora)}
+        ${field("Serie", pf("serie"), p.serie)}${field("Número en la serie", pf("numero"), p.numero)}${field("Género", pf("genero"), p.genero)}
+        ${field("Subgénero", pf("subgenero"), p.subgenero)}${field("Tropos", pf("tropos"), p.tropos)}${field("Para fans de… (autoras o libros parecidos)", pf("comparables"), p.comparables)}</div>
+      ${field("Avisos de contenido", pf("avisos"), p.avisos)}
+      <div class="fgrid">${field("Objetivo de palabras", pf("objetivoPalabras"), p.objetivoPalabras, "number")}${field("Palabras escritas", pf("palabrasEscritas"), p.palabrasEscritas, "number")}</div>
+      <p class="hint" style="margin:0">Las palabras escritas las puedes traer de Novelia Studio o apuntarlas a mano.</p>
+    </div>
   </div>
-  <div class="card"><div class="ch"><h3>Escaleta</h3><span class="hint">Desliza para ver los siete momentos de la historia</span></div><div class="beats">${beats}</div></div>
-  <div class="card"><div class="ch"><h3>Personajes</h3><button class="btn ghost sm" type="button" data-add="personajes" data-s="p">+ Añadir personaje</button></div>
-    <div class="chars">${chars || `<div class="empty">Añade a tu protagonista y a su interés amoroso.</div>`}</div></div>
-  <div class="card"><h3>Localizaciones</h3>${tableHTML("localizaciones", "p", p.localizaciones, { addLabel: "Añadir lugar", empty: "¿Dónde ocurre tu historia?" })}</div>
   <div class="card"><h3>Sinopsis</h3>
     <div class="note">Escribe lo primero que se te ocurra. Nada sale perfecto a la primera y no hay ideas malas.</div>
-    <div class="grid g2">${field("Ideas sueltas", pf("ideasSinopsis"), p.ideasSinopsis, "area")}
-    ${field("Sinopsis final", pf("sinopsis"), p.sinopsis, "area", `<em class="count" data-count="sinopsis">${words(p.sinopsis)} palabras</em>`)}
+    ${fieldMax("Frase gancho (una línea)", "pitch", p.pitch, 150, "text")}
+    <div class="grid g2">${fieldMax("Sinopsis corta (redes, newsletter)", "sinopsisCorta", p.sinopsisCorta, 500)}
+    ${field("Sinopsis larga (la de Amazon)", `${pf("sinopsis")} data-max="4000"`, p.sinopsis, "area", `${cnt("sinopsis", p.sinopsis, 4000)} <em class="count" data-count="sinopsis">${words(p.sinopsis)} palabras</em>`)}
+    ${field("Ideas sueltas", pf("ideasSinopsis"), p.ideasSinopsis, "area")}
     ${field("Palabras clave en otras sinopsis", pf("kwSinopsis"), p.kwSinopsis, "area")}
     ${field("Palabras clave en opiniones de otras novelas", pf("kwOpiniones"), p.kwOpiniones, "area")}</div>
   </div>
-  <div class="card"><div class="ch"><h3>Amazon KDP</h3><span class="hint">KDP te deja 7 casillas de palabras clave de hasta 50 caracteres cada una</span></div>
-    <div class="kdp">${kdp}</div>${field("Categorías", pf("categorias"), p.categorias, "area")}</div>
   <div class="card"><h3>Páginas de cortesía</h3>
     <div class="grid g2">${field("Legales", pf("legales"), p.legales, "area")}
     <div style="display:flex;flex-direction:column;gap:12px">${field("Epígrafe", pf("epigrafe"), p.epigrafe, "area")}${field("Dedicatoria del libro", pf("dedicatoria"), p.dedicatoria, "area")}${field("Dedicatoria para libros firmados", pf("dedicatoriaFirma"), p.dedicatoriaFirma, "area")}</div></div>
-  </div>
-  <div class="card"><div class="ch"><h3>Frases para promos</h3><span class="hint">Las que vas guardando para diseños y redes</span></div>${tableHTML("frases", "p", p.frases, { addLabel: "Añadir frase" })}</div>`;
+  </div>`;
 }
 
-/* 3. Escritura */
-function vEscritura() {
-  const p = P(), ym = view.mes;
-  const es = escrituraStats(p, ym);
-  const pct = es.obj ? Math.round(es.real / es.obj * 100) : 0;
-  const days = monthDays(ym);
-  const lead = dow(days[0]);
-  let cells = DIAS.map(d => `<div class="dn">${d}</div>`).join("");
-  for (let i = 0; i < lead; i++) cells += `<div class="day blank" aria-hidden="true"></div>`;
-  days.forEach(d => {
-    const e = p.escritura[d] || {};
-    const st = dayState(e, d);
-    const rest = !num(e.obj) && !num(e.real) ? " rest" : "";
-    cells += `<div class="day ${st}${rest}${d === TODAY ? " today" : ""}" data-daycell="${d}">
-      <div class="num">${Number(d.slice(8))}</div>
-      <label>Meta<input type="number" inputmode="numeric" data-day="${d}" data-k="obj" value="${esc(e.obj || "")}" aria-label="Meta del ${dayLabel(d)}"></label>
-      <label>Hecho<input type="number" inputmode="numeric" data-day="${d}" data-k="real" value="${esc(e.real || "")}" aria-label="Palabras escritas el ${dayLabel(d)}"></label>
-      <input class="caps" type="text" data-day="${d}" data-k="caps" value="${esc(e.caps || "")}" placeholder="Capítulos" aria-label="Capítulos del ${dayLabel(d)}">
-    </div>`;
-  });
-  const media = es.diasObj ? Math.round(es.real / Math.max(1, days.filter(d => d <= TODAY && p.escritura[d] && num(p.escritura[d].obj)).length)) : 0;
-  return `
-  <div class="head"><div><div class="eyebrow">Calendario de escritura</div><h1 style="text-transform:capitalize">${mesLabel(ym)}</h1>
-    <p>Apunta cada día tu meta y las palabras que escribes. Verde: meta cumplida. Ámbar: a medias. Rosa: día con meta sin escribir.</p></div>
-    <button class="btn" type="button" id="btnPlan">Crear plan de escritura</button></div>
-  <div class="tiles" id="escTiles">${escTiles(es, pct, media, p)}</div>
-  <div class="cal">${cells}</div>`;
+/* 3. Amazon KDP */
+function avisosKw(p, kw) {
+  const t = String(kw || "").trim().toLowerCase(); if (!t) return [];
+  const meta = [p.titulo, p.subtitulo, p.serie, p.autora, p.categorias].join(" ").toLowerCase();
+  const a = [];
+  if (t.length > 50) a.push("más de 50 caracteres");
+  PROHIBIDAS.forEach(w => { if (new RegExp("(^|\\s)" + w + "(\\s|$)", "i").test(t)) a.push(`«${w}» no está permitido o no ayuda`); });
+  if (/["“”«»<>]/.test(t)) a.push("sin comillas ni etiquetas");
+  t.split(/\s+/).filter(w => w.length > 3 && meta.includes(w)).slice(0, 2).forEach(w => a.push(`«${w}» ya está en el título, la autora o las categorías`));
+  if (p.kdp.filter(x => String(x).trim().toLowerCase() === t).length > 1) a.push("repetida");
+  return a;
 }
-function escTiles(es, pct, media, p) {
-  const totalPct = p.objetivoPalabras ? Math.round(es.total / num(p.objetivoPalabras) * 100) : 0;
-  return tile("Escritas este mes", fmt(es.real), `${pct}% de ${fmt(es.obj)}`, pct >= 100 ? "ok" : "") +
-    tile("Días con meta cumplida", `${es.diasOk} / ${es.diasObj}`, "en este mes", "lav") +
-    tile("Racha actual", es.racha + (es.racha === 1 ? " día" : " días"), "seguidos con palabras", es.racha >= 3 ? "ok" : "") +
-    tile("Manuscrito", totalPct + "%", `${fmt(es.total)} de ${fmt(p.objetivoPalabras)} palabras`, "");
-}
-function refreshEscritura() {
-  const p = P(), ym = view.mes;
-  const es = escrituraStats(p, ym);
-  const pct = es.obj ? Math.round(es.real / es.obj * 100) : 0;
-  const t = $("#escTiles"); if (t) t.innerHTML = escTiles(es, pct, 0, p);
-  $$("[data-daycell]").forEach(c => {
-    const d = c.dataset.daycell, e = p.escritura[d] || {};
-    c.classList.remove("done", "part", "miss", "rest");
-    const st = dayState(e, d); if (st) c.classList.add(st);
-    if (!num(e.obj) && !num(e.real)) c.classList.add("rest");
-  });
-}
-function openPlan() {
+function vKdp() {
   const p = P();
-  const ini = view.mes === monthOf(TODAY) ? TODAY : view.mes + "-01";
-  openModal(`<h2>Crear plan de escritura</h2>
-    <p class="hint" style="margin:0">Reparte las palabras que te quedan entre los días que vas a escribir. Solo cambia la meta de esos días; lo que ya has escrito no se toca.</p>
-    <div class="fgrid">
-      <label class="field"><span>Desde</span><input type="date" id="plIni" value="${ini}"></label>
-      <label class="field"><span>Hasta</span><input type="date" id="plFin" value="${monthDays(view.mes).slice(-1)[0]}"></label>
-      <label class="field"><span>Palabras a escribir</span><input type="number" id="plPal" value="${Math.max(0, num(p.objetivoPalabras) - escrituraStats(p, view.mes).total)}"></label>
-    </div>
-    <div class="field"><span>Días que escribes</span><div class="days7">${DIAS.map((d, i) => `<label><input type="checkbox" value="${i}" ${i < 5 ? "checked" : ""}> ${d}</label>`).join("")}</div></div>
-    <p class="hint" id="plRes" style="margin:0"></p>
-    <div class="acts"><button class="btn ghost" type="button" data-close>Cancelar</button><button class="btn" type="button" id="plOk">Aplicar plan</button></div>`, box => {
-    const calc = () => {
-      const a = $("#plIni", box).value, b = $("#plFin", box).value;
-      const dias = $$(".days7 input:checked", box).map(x => +x.value);
-      const list = [];
-      if (a && b && a <= b) { const d = new Date(a + "T12:00:00"); while (ymd(d) <= b && list.length < 800) { if (dias.includes((d.getDay() + 6) % 7)) list.push(ymd(d)); d.setDate(d.getDate() + 1); } }
-      const per = list.length ? Math.ceil(num($("#plPal", box).value) / list.length) : 0;
-      $("#plRes", box).textContent = list.length ? `${list.length} días de escritura · ${fmt(per)} palabras al día` : "Elige un rango de fechas y al menos un día.";
-      return { list, per };
-    };
-    box.addEventListener("input", calc); calc();
-    $("#plOk", box).addEventListener("click", () => {
-      const { list, per } = calc(); if (!list.length) return;
-      list.forEach(d => { p.escritura[d] = Object.assign({ real: "", caps: "" }, p.escritura[d] || {}, { obj: per }); });
-      closeModal(); save(); render(); toast(`Plan aplicado: ${fmt(per)} palabras en ${list.length} días`);
-    });
-  });
+  const kdp = p.kdp.map((v, i) => `<label class="field"><span>Casilla ${i + 1}<em class="count ${v.length > 50 ? "over" : ""}" data-count="kdp${i}">${v.length}/50</em></span><input type="text" data-s="p" data-arr="kdp" data-i="${i}" value="${esc(v)}" maxlength="80"><small class="kwav" data-kwav="${i}">${esc(avisosKw(p, v).join(" · "))}</small></label>`).join("");
+  const formato = (k, n) => {
+    const f = p.formatos[k];
+    const est = ["", "Borrador", "Preventa", "En revisión", "Publicado"].map(o => `<option${o === (f.estado || "") ? " selected" : ""}>${o}</option>`).join("");
+    return `<div class="card fmt"><div class="ch"><h3>${n}</h3>${f.estado ? `<span class="chip ${tone(f.estado)}">${esc(f.estado)}</span>` : ""}</div>
+      <div class="fgrid"><label class="field"><span>Estado</span><select ${pp(`formatos.${k}.estado`)}>${est}</select></label>
+      ${field("Precio (€)", pp(`formatos.${k}.precio`), f.precio || "", "text")}
+      ${field(k === "ebook" ? "ASIN" : "ISBN", pp(`formatos.${k}.id`), f.id || "")}
+      ${field("Fecha", pp(`formatos.${k}.fecha`), f.fecha || "", "date")}</div>
+      ${k === "ebook" ? `<label class="chk"><input type="checkbox" ${pp("formatos.ebook.ku")}${f.ku ? " checked" : ""}> En Kindle Unlimited (KDP Select)</label>` : ""}</div>`;
+  };
+  return `
+  <div class="head"><div><div class="eyebrow">Amazon KDP</div><h1>Tu ficha en Amazon</h1><p>Palabras clave, categorías, formatos y la descripción con formato, listos para copiar en KDP.</p></div></div>
+  <div class="grid g2">
+    <div class="card"><div class="ch"><h3>Palabras clave</h3><button class="btn ghost sm" type="button" id="copiarKw">Copiar las 7</button></div>
+      <p class="hint" style="margin:0">Frases que buscaría tu lectora («comedia romántica navidad pueblo»), sin repetir lo que ya está en el título o las categorías. Hasta 50 caracteres cada una.</p>
+      <div class="kdp">${kdp}</div>
+      ${field("Categorías (hasta 3, una por línea)", pf("categorias"), p.categorias, "area")}</div>
+    <div class="card"><h3>Enlaces de compra</h3>
+      ${field("Amazon (ebook)", pp("enlaces.amazon"), p.enlaces.amazon, "url")}
+      ${field("Amazon (papel)", pp("enlaces.papel"), p.enlaces.papel, "url")}
+      ${field("Otras tiendas (una por línea: tienda | enlace)", pp("enlaces.otros"), p.enlaces.otros, "area")}
+      <p class="hint" style="margin:0">Salen como botones en la página de tu web (sección Web).</p></div>
+  </div>
+  <div class="grid g3">${formato("ebook", "Ebook")}${formato("blanda", "Tapa blanda")}${formato("dura", "Tapa dura")}</div>
+  <div class="card"><div class="ch"><h3>Descripción para Amazon</h3><span id="descCont"></span></div>
+    <p class="hint" style="margin:0">KDP admite negrita, cursiva, subrayado, títulos pequeños, párrafos, saltos y listas. Las etiquetas cuentan para el límite de 4000 caracteres.</p>
+    <div class="filters">${[["b", "<b>N</b>"], ["i", "<i>C</i>"], ["u", "<u>S</u>"], ["h4", "Título"], ["p", "Párrafo"], ["br", "Salto"], ["li", "Lista"]].map(([t, l]) => `<button type="button" data-tag="${t}">${l}</button>`).join("")}
+      <button type="button" id="descDesde">Traer la sinopsis larga</button><button type="button" id="descCopiar">Copiar para KDP</button></div>
+    <div class="grid g2"><label class="field"><span>HTML</span><textarea id="kdpDesc" ${pf("kdpDesc")} style="min-height:260px;font-family:ui-monospace,Menlo,monospace;font-size:.8rem">${esc(p.kdpDesc)}</textarea></label>
+      <div class="field"><span>Así se verá en Amazon</span><div class="desc-prev" id="descPrev"></div></div></div>
+    <div id="descAv"></div></div>
+  <div class="card"><div class="ch"><h3>Contenido A+</h3><span class="hint">Planifica los módulos antes de montarlos en KDP (Marketing › Contenido A+)</span></div>
+    ${tableHTML("aplus", "p", p.aplus, { addLabel: "Añadir módulo", empty: "Un buen comienzo: una cabecera con la frase gancho, tres imágenes con los tropos y la comparativa con tus otros libros.", preset: { tipo: p.aplus.length ? "Tres imágenes con texto" : "Imagen de cabecera con texto" } })}
+    <p class="hint" style="margin:0">Imágenes JPG o PNG de 3 MB como máximo, sin texto pequeño encima.</p></div>`;
+}
+const TAGS_KDP = /^(b|i|em|u|br|p|h4|h5|h6|ol|ul|li)$/i;
+function pintarDesc() {
+  const ta = $("#kdpDesc"); if (!ta) return;
+  const v = ta.value;
+  const c = $("#descCont"); c.className = "count" + (v.length > 4000 ? " over" : ""); c.textContent = v.length + "/4000";
+  const malas = [...new Set([...v.matchAll(/<\/?([a-z0-9]+)[^>]*>/gi)].map(m => m[1].toLowerCase()).filter(t => !TAGS_KDP.test(t)))];
+  $("#descAv").innerHTML = malas.length ? `<div class="note">⚠ KDP no admite: ${malas.map(t => "&lt;" + esc(t) + "&gt;").join(", ")}</div>` : "";
+  const d = document.createElement("div"); d.innerHTML = v.replace(/\n/g, " ");
+  $$("*", d).forEach(e => { if (!TAGS_KDP.test(e.tagName)) e.replaceWith(...e.childNodes); else [...e.attributes].forEach(a => e.removeAttribute(a.name)); });
+  $("#descPrev").innerHTML = d.innerHTML || '<p class="hint">Escribe la descripción a la izquierda.</p>';
 }
 
-/* 4. Lanzamiento */
+/* 4. Producción */
+function vProduccion() {
+  const p = P();
+  const fh = p.fases.filter(f => f.estado === "Hecho").length;
+  const pc = p.fases.length ? Math.round(fh / p.fases.length * 100) : 0;
+  const fuera = p.betas.filter(b => b.enviado && !b.devuelto).length;
+  return `
+  <div class="head"><div><div class="eyebrow">Producción</div><h1>Del borrador al archivo final</h1><p>En qué fase está el libro, quién lo tiene y cuál es el archivo bueno de cada versión.</p></div></div>
+  <div class="tiles">${tile("Fases hechas", `${fh} / ${p.fases.length}`, pc + "%", pc === 100 ? "ok" : "lav")}
+    ${tile("En curso", p.fases.filter(f => f.estado === "En curso").map(f => esc(f.nombre)).join(", ") || "—", "", "")}
+    ${tile("Lectoras y correctora", p.betas.length, fuera ? fuera + " con el libro ahora" : "", fuera ? "warn" : "")}
+    ${tile("Reseñas", p.betas.filter(b => b.resena === "Reseña hecha").length, "de tus lectoras", "ok")}</div>
+  <div class="card phase"><div class="ph"><h3>Fases</h3>${bar(pc, pc === 100 ? "ok" : "")}<span class="pct">${fh}/${p.fases.length}</span></div>
+    <p class="hint" style="margin:0">Apunta en cada fase qué archivo es el bueno («MI NOVELA - 2ª revisión sin muletillas.docx») y así no tienes que adivinarlo.</p>
+    ${tableHTML("fases", "p", p.fases, { addLabel: "Añadir fase" })}</div>
+  <div class="card"><h3>Lectoras beta y correctora</h3>${tableHTML("betas", "p", p.betas, { addLabel: "Añadir persona", empty: "Nadie todavía." })}</div>`;
+}
+
+/* 5. Lanzamiento */
 function vLanzamiento() {
   const p = P();
   const f = view.fTareas;
@@ -657,15 +694,85 @@ function vLanzamiento() {
       ${tableHTML("tareas", "p", rows, { preset: { fase: fa }, addLabel: "Añadir tarea", empty: f === "todas" ? "Sin tareas en esta fase." : "Nada con este filtro." })}</div>`;
   }).join("");
   const fb = (k, t) => `<button type="button" data-ftareas="${k}" aria-pressed="${f === k}">${t}</button>`;
+  const faltan = diasA(p.lanzFecha);
+  const sinFecha = p.tareas.filter(t => !t.fecha && t.estado !== "Hecho").length;
   return `
   <div class="head"><div><div class="eyebrow">Checklist de lanzamiento</div><h1>Del manuscrito a la librería</h1>
     <p>Todo lo que hay que hacer para publicar, agrupado por fases. Ponle fecha a una tarea y te aparecerá en «Mi mes».</p></div></div>
+  <div class="card"><div class="ch"><h3>El día D</h3>${faltan !== null ? `<span class="hint">${faltan > 0 ? `Faltan <b>${faltan} ${faltan === 1 ? "día" : "días"}</b>` : faltan === 0 ? "<b>¡Hoy es el día!</b>" : `Salió hace ${-faltan} días`}</span>` : ""}</div>
+    <div class="fgrid">${field("Fecha de lanzamiento", pf("lanzFecha"), p.lanzFecha, "date")}${field("Abre la preventa", pf("preventaFecha"), p.preventaFecha, "date")}</div>
+    <div class="filters">
+      <button type="button" id="repartir"${p.lanzFecha ? "" : " disabled"}>Poner fechas desde el día D${sinFecha ? ` (${sinFecha} sin fecha)` : ""}</button>
+      <button type="button" id="planRedes"${p.lanzFecha ? "" : " disabled"}>Crear plan de redes del lanzamiento</button>
+      <button type="button" id="ics">Descargar para Google Calendar (.ics)</button></div>
+    ${p.lanzFecha ? "" : `<p class="hint" style="margin:0">Pon la fecha de lanzamiento y el kit te reparte las fechas de las tareas y te prepara las publicaciones.</p>`}</div>
   <div class="tiles">${tile("Hechas", `${hechas} / ${p.tareas.length}`, Math.round(hechas / Math.max(1, p.tareas.length) * 100) + "% del lanzamiento", "ok")}
     ${tile("En curso", p.tareas.filter(t => t.estado === "En curso").length, "tareas abiertas", "lav")}
     ${tile("Con fecha este mes", p.tareas.filter(t => monthOf(t.fecha) === view.mes).length, mesLabel(view.mes), "")}
     ${tile("Coste apuntado", eur(coste), "suma de la columna Coste", "")}</div>
   <div class="filters">${fb("todas", "Todas")}${fb("pendientes", "Solo pendientes")}${fb("mes", "Con fecha este mes")}</div>
   ${blocks}`;
+}
+function repartirFechas() {
+  const p = P(); if (!p.lanzFecha) return;
+  let n = 0;
+  const antes = p.tareas.map(t => [t, t.fecha]);
+  // Si falta menos de medio año, se aprieta el calendario para que nada caiga en el pasado
+  const disp = diasA(p.lanzFecha);
+  const k = disp > 0 && disp < 180 ? disp / 180 : 1;
+  Object.keys(VENTANAS).forEach(fa => {
+    const list = p.tareas.filter(t => t.fase === fa && !t.fecha && t.estado !== "Hecho");
+    const [a, b] = VENTANAS[fa];
+    list.forEach((t, i) => {
+      let d = list.length > 1 ? a + (b - a) * i / (list.length - 1) : b;
+      if (d < 0) d = Math.max(-disp, Math.round(d * k)); else d = Math.round(d);
+      t.fecha = sumarDias(p.lanzFecha, d); n++;
+    });
+  });
+  save(); render();
+  toast(n ? `${n} tareas con fecha. Cámbialas a tu gusto.` : "Todas las tareas pendientes ya tenían fecha.", n ? () => antes.forEach(([t, f]) => { t.fecha = f; }) : null);
+}
+function planRedes() {
+  const p = P(); if (!p.lanzFecha) return;
+  const t = p.titulo || "mi novela";
+  const plan = [[-40, "Revelación de portada", "Carrusel", "Instagram", "Por fin puedo enseñárosla"], [-30, `Tropos de ${t}`, "Carrusel", "Instagram", "Si te gustan estos tropos, este libro es para ti"],
+    [-21, `Una frase de ${t}`, "Reel", "Todas", "Una frase que aún no ha leído nadie"], [-14, `${t} vibes`, "Post", "Instagram", "Moodboard sin spoilers"],
+    [-10, "Conoce a los protagonistas", "Carrusel", "Instagram", "Ella es… y él es…"], [-7, "Cuenta atrás: queda una semana", "Reel", "Todas", "Ya no puedo guardar el secreto"],
+    [-3, "Último aviso de preventa", "Newsletter", "Newsletter", "Quedan tres días"], [-1, "Mañana sale", "Stories", "Instagram", "Activa el recordatorio"],
+    [0, `Día de lanzamiento: ${t}`, "Reel", "Todas", "Ya está aquí"], [3, "Lo que dicen las lectoras", "Carrusel", "Instagram", "No lo digo yo, lo dicen ellas"],
+    [10, p.serie ? `Por dónde empezar: ${p.serie}` : "Por dónde empezar a leerme", "Carrusel", "Instagram", "¿Nunca me has leído? Empieza por aquí"]];
+  const ya = new Set(S.posts.map(x => x.contenido));
+  const nuevos = [];
+  plan.forEach(([d, contenido, tipo, red, gancho]) => {
+    const fecha = sumarDias(p.lanzFecha, d);
+    if (ya.has(contenido) || fecha < TODAY) return;
+    nuevos.push({ id: uid(), fecha, red, tipo, contenido, copy: gancho, hashtags: "#novelaromántica #bookstagram #romántica", cta: d === 0 ? "Enlace en mi bio" : "", estado: "Idea" });
+  });
+  S.posts.push(...nuevos);
+  save();
+  toast(nuevos.length ? `${nuevos.length} publicaciones añadidas en Redes (solo de hoy en adelante)` : "No hay publicaciones nuevas que añadir", nuevos.length ? () => { S.posts = S.posts.filter(x => !nuevos.includes(x)); } : null);
+  if (nuevos.length) { view.mes = monthOf(nuevos[0].fecha); location.hash = "redes"; }
+}
+function descargarIcs() {
+  const p = P();
+  const f = s => s.replace(/-/g, "");
+  const limpio = s => String(s || "").replace(/[\\,;]/g, " ").replace(/\n/g, " ");
+  const ev = (d, s) => `BEGIN:VEVENT\r\nUID:${uid()}@kitescritoras\r\nDTSTAMP:${f(TODAY)}T000000Z\r\nDTSTART;VALUE=DATE:${f(d)}\r\nDTEND;VALUE=DATE:${f(sumarDias(d, 1))}\r\nSUMMARY:${limpio(s)}\r\nEND:VEVENT\r\n`;
+  let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Kit Escritoras//ES\r\n", n = 0;
+  if (p.lanzFecha) { ics += ev(p.lanzFecha, `🚀 Lanzamiento: ${p.titulo}`); n++; }
+  if (p.preventaFecha) { ics += ev(p.preventaFecha, `🛒 Abre la preventa: ${p.titulo}`); n++; }
+  p.tareas.filter(t => t.fecha && t.estado !== "Hecho").forEach(t => { ics += ev(t.fecha, `📚 ${p.titulo}: ${t.tarea}`); n++; });
+  S.posts.filter(x => x.fecha && !["Publicado", "Analizado"].includes(x.estado)).forEach(x => { ics += ev(x.fecha, `📱 ${x.tipo}: ${x.contenido || "sin título"}`); n++; });
+  ics += "END:VCALENDAR\r\n";
+  if (n < 1) { toast("No hay nada con fecha todavía."); return; }
+  descargar(new Blob([ics], { type: "text/calendar" }), `lanzamiento-${(p.titulo || "novela").replace(/[^\wáéíóúñü -]/gi, "").trim().replace(/\s+/g, "-").toLowerCase()}.ics`);
+  toast(`${n} fechas descargadas: abre el archivo o impórtalo en Google Calendar`);
+}
+function descargar(blob, nombre) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
 /* 5. Redes */
@@ -690,7 +797,197 @@ function vRedes() {
   <div class="cal">${cells}</div>
   <div class="card"><div class="ch"><h3>Publicaciones de ${MESES[+ym.slice(5) - 1]}</h3><span class="hint">${mes.length} publicaciones</span></div>
     ${tableHTML("posts", "g", mes, { preset: { fecha: ym === monthOf(TODAY) ? TODAY : ym + "-01" }, addLabel: "Añadir publicación", empty: "Aún no hay publicaciones este mes." })}</div>
-  ${sinFecha.length ? `<div class="card"><h3>Ideas sin fecha</h3>${tableHTML("posts", "g", sinFecha, { noAdd: true })}</div>` : ""}`;
+  ${sinFecha.length ? `<div class="card"><h3>Ideas sin fecha</h3>${tableHTML("posts", "g", sinFecha, { noAdd: true })}</div>` : ""}
+  <div class="card" id="citas"><div class="ch"><h3>Frases y citas de «${esc(P().titulo)}»</h3><span class="hint">Las que guardas para diseños y redes</span></div>${tableHTML("frases", "p", P().frases, { addLabel: "Añadir frase" })}</div>
+  ${vTarjeta()}`;
+}
+
+/* Tarjetas de citas para Instagram */
+const ESTILOS_TARJ = {
+  marca: { n: "Rosa", fondo: "#a5595d", tinta: "#fffdfc" }, lino: { n: "Lino", fondo: "#f8f2ef", tinta: "#3a2a2c" },
+  empolvado: { n: "Empolvado", fondo: "#dfadad", tinta: "#3a2a2c" }, noche: { n: "Noche", fondo: "#2a2022", tinta: "#f0e6ea" },
+  portada: { n: "Con la portada", fondo: "#000", tinta: "#ffffff" }
+};
+const tarj = { formato: "1080x1350", estilo: "marca", frase: "" };
+function vTarjeta() {
+  const p = P();
+  const frases = p.frases.filter(f => String(f.frase || "").trim());
+  if (!frases.length) return `<div class="card"><h3>Tarjeta para redes</h3><div class="empty">Añade una frase arriba y aquí la conviertes en una imagen para Instagram.</div></div>`;
+  if (!frases.some(f => f.id === tarj.frase)) tarj.frase = frases[0].id;
+  const est = Object.entries(ESTILOS_TARJ).filter(([k]) => k !== "portada" || p.portada);
+  if (!est.some(([k]) => k === tarj.estilo)) tarj.estilo = "marca";
+  return `<div class="card"><div class="ch"><h3>Tarjeta para redes</h3><button class="btn sm" type="button" id="tjPng">Descargar PNG</button></div>
+    <div class="tarj">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <label class="field"><span>Frase</span><select id="tjFrase">${frases.map(f => `<option value="${f.id}"${f.id === tarj.frase ? " selected" : ""}>${esc(String(f.frase).slice(0, 90))}</option>`).join("")}</select></label>
+        <div class="field"><span>Formato</span><div class="filters" style="margin:0">${[["1080x1350", "Post 4:5"], ["1080x1080", "Cuadrada"], ["1080x1920", "Story / reel"]].map(([k, t]) => `<button type="button" data-tf="${k}" aria-pressed="${tarj.formato === k}">${t}</button>`).join("")}</div></div>
+        <div class="field"><span>Estilo</span><div class="filters" style="margin:0">${est.map(([k, e]) => `<button type="button" data-te="${k}" aria-pressed="${tarj.estilo === k}">${e.n}</button>`).join("")}</div></div>
+        <p class="hint" style="margin:0">Abajo sale el título${p.autora ? " y tu nombre de autora" : ". Pon tu nombre de autora en Libro para que salga también"}.</p>
+      </div>
+      <canvas id="tjC" aria-label="Vista previa de la tarjeta"></canvas>
+    </div></div>`;
+}
+async function pintarTarjeta() {
+  const cv = $("#tjC"); if (!cv) return;
+  const p = P(); const fr = p.frases.find(f => f.id === tarj.frase); if (!fr) return;
+  const [W, H] = tarj.formato.split("x").map(Number);
+  cv.width = W; cv.height = H;
+  const g = cv.getContext("2d"); const e = ESTILOS_TARJ[tarj.estilo];
+  try { await document.fonts.load('italic 600 60px "Cormorant Garamond"'); await document.fonts.load('700 30px "Nunito Sans"'); } catch (err) { /* sin fuentes web */ }
+  g.fillStyle = e.fondo; g.fillRect(0, 0, W, H);
+  if (tarj.estilo === "portada" && p.portada) {
+    const im = new Image(); await new Promise(r => { im.onload = r; im.onerror = r; im.src = p.portada; });
+    if (im.width) { const k = Math.max(W / im.width, H / im.height); g.drawImage(im, (W - im.width * k) / 2, (H - im.height * k) / 2, im.width * k, im.height * k); }
+    g.fillStyle = "rgba(0,0,0,.45)"; g.fillRect(0, 0, W, H);
+  }
+  const serif = '"Cormorant Garamond", Georgia, serif';
+  const texto = String(fr.frase).replace(/\s+/g, " ").trim().replace(/^[«"“]+|[»"”]+$/g, "");
+  const ancho = W - 240;
+  const partir = t => { const out = []; let l = ""; t.split(" ").forEach(w => { const q = l ? l + " " + w : w; if (g.measureText(q).width > ancho && l) { out.push(l); l = w; } else l = q; }); if (l) out.push(l); return out; };
+  let tam = 84, lineas = [];
+  for (; tam >= 34; tam -= 2) { g.font = `italic 600 ${tam}px ${serif}`; lineas = partir(texto); if (lineas.length * tam * 1.3 < H * 0.55) break; }
+  const alto = lineas.length * tam * 1.3, y = (H - alto) / 2 + tam * 0.5;
+  g.fillStyle = e.tinta; g.textAlign = "center"; g.textBaseline = "middle";
+  g.globalAlpha = .35; g.font = `${tam * 2.6}px ${serif}`; g.fillText("“", W / 2, y - tam * 1.45); g.globalAlpha = 1;
+  g.font = `italic 600 ${tam}px ${serif}`;
+  lineas.forEach((l, i) => g.fillText(l, W / 2, y + i * tam * 1.3));
+  const pie = [p.titulo, p.autora].filter(Boolean).join(" · ").toUpperCase();
+  g.font = '700 28px "Nunito Sans", sans-serif'; g.globalAlpha = .85;
+  if ("letterSpacing" in g) g.letterSpacing = "4px";
+  g.fillText(pie, W / 2, H - 110); g.globalAlpha = 1;
+  if ("letterSpacing" in g) g.letterSpacing = "0px";
+}
+
+/* Web: página del libro para WordPress */
+function htmlWeb(p, portada) {
+  const otros = String(p.enlaces.otros || "").split("\n").map(l => l.split("|").map(s => s.trim())).filter(x => x[1]);
+  const botones = [p.enlaces.amazon && ["Comprar en Amazon", p.enlaces.amazon], p.enlaces.papel && ["En papel", p.enlaces.papel], ...otros].filter(Boolean);
+  const sinopsis = (p.sinopsis || p.sinopsisCorta || "").split(/\n\s*\n|\n/).filter(x => x.trim()).map(x => `<p>${esc(x.trim())}</p>`).join("\n    ");
+  const tropos = String(p.tropos || "").split(/[·,\n]/).map(s => s.trim()).filter(Boolean);
+  return `<div class="libro-ficha" style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+  <!-- Sustituye PORTADA.jpg por la portada subida a tu biblioteca de medios -->
+  <img src="${portada || "PORTADA.jpg"}" alt="${esc(p.titulo)}" style="width:260px;max-width:100%;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.15)">
+  <div style="flex:1;min-width:260px">
+    ${p.serie ? `<p style="text-transform:uppercase;letter-spacing:.12em;font-size:13px;opacity:.7">${esc(p.serie)}${p.numero ? " · Libro " + esc(p.numero) : ""}</p>` : ""}
+    <h2>${esc(p.titulo)}</h2>${p.subtitulo ? `\n    <p><em>${esc(p.subtitulo)}</em></p>` : ""}
+    ${p.pitch ? `<p style="font-size:1.2em"><strong>${esc(p.pitch)}</strong></p>` : ""}
+    ${sinopsis}
+    ${tropos.length ? `<p style="opacity:.8">${tropos.map(t => "#" + esc(t)).join(" · ")}</p>` : ""}
+    <p>${botones.map(([n, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener" style="display:inline-block;margin:4px 8px 4px 0;padding:10px 18px;border-radius:999px;background:#a5595d;color:#fff;text-decoration:none">${esc(n)}</a>`).join("")}</p>
+  </div>
+</div>`;
+}
+function vWeb() {
+  const p = P();
+  const gris = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22260%22 height=%22400%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 fill=%22%23e9d8c9%22/%3E%3C/svg%3E";
+  const html = htmlWeb(p);
+  return `
+  <div class="head"><div><div class="eyebrow">Tu web</div><h1>La página del libro</h1><p>Sale de la ficha del libro y de los enlaces de compra de Amazon KDP. Cópiala y pégala en tu web.</p></div></div>
+  <div class="grid g2">
+    <div class="card"><h3>Así quedaría</h3><div class="web-prev">${htmlWeb(p, p.portada || gris)}</div></div>
+    <div class="card"><h3>Para WordPress</h3>
+      <ol class="hint" style="margin:0;padding-left:18px;line-height:1.7"><li>En WordPress, crea la página del libro y añade un bloque <b>HTML personalizado</b>.</li><li>Pega este código y cambia <code>PORTADA.jpg</code> por la portada de tu biblioteca de medios.</li></ol>
+      <label class="field"><span>Código</span><textarea id="webHtml" readonly style="min-height:300px;font-family:ui-monospace,Menlo,monospace;font-size:.75rem">${esc(html)}</textarea></label>
+      <div class="acts" style="display:flex;gap:8px"><button class="btn" type="button" id="webCopiar">Copiar HTML</button>${p.portada ? `<button class="btn ghost" type="button" id="webPortada">Descargar portada</button>` : ""}</div></div>
+  </div>`;
+}
+async function copiar(texto, msg) {
+  try { await navigator.clipboard.writeText(texto); toast(msg || "Copiado"); }
+  catch (e) { toast("Tu navegador no deja copiar automáticamente: selecciona el texto y usa Ctrl+C."); }
+}
+
+/* Portada: se guarda una copia pequeña */
+function leerPortada(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file); const im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 800 / Math.max(im.width, im.height));
+      const c = document.createElement("canvas"); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg", .85));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error("imagen")); };
+    im.src = url;
+  });
+}
+
+/* Traer de Novelia Studio */
+const ESTADO_FASE = { pendiente: "Pendiente", curso: "En curso", hecho: "Hecho" };
+const CAT_FASE = { "Producción": "Edición y diseño", "Amazon": "Publicación" };
+function importarNovelia(d, destino) {
+  const n = d.novela || {}; const pub = n.publicar || {};
+  const F = pub.ficha || {}, K = pub.kdp || {}, R = pub.prod || {}, L = pub.lanz || {};
+  let p = destino;
+  if (!p) { p = newProject(F.titulo || n.titulo || "Mi novela"); S.proyectos.push(p); }
+  S.activo = p.id;
+  const put = (k, v) => { if (v !== undefined && v !== null && String(v).trim() !== "") p[k] = v; };
+  put("titulo", F.titulo || n.titulo); put("subtitulo", F.subtitulo); put("serie", F.serie); put("numero", F.numero);
+  put("genero", F.genero); put("subgenero", F.subgenero); put("comparables", F.comparables); put("avisos", F.avisos);
+  put("pitch", F.pitch); put("sinopsisCorta", F.sinopsisCorta); put("sinopsis", F.sinopsisLarga);
+  if (Array.isArray(F.tropos) && F.tropos.length) p.tropos = F.tropos.join(" · ");
+  put("autora", d.autora); put("portada", n.portada);
+  if (num(n.palabras) > 0) p.palabrasEscritas = Math.round(num(n.palabras));
+  if (num(n.objetivo) > 0) p.objetivoPalabras = Math.round(num(n.objetivo));
+  if (Array.isArray(K.keywords) && K.keywords.some(x => String(x).trim())) { p.kdp = K.keywords.slice(0, 7).map(String); while (p.kdp.length < 7) p.kdp.push(""); }
+  if (Array.isArray(K.categorias) && K.categorias.some(x => String(x).trim())) p.categorias = K.categorias.filter(x => String(x).trim()).join("\n");
+  put("kdpDesc", K.descripcion);
+  if (K.enlaces) ["amazon", "papel", "otros"].forEach(k => { if (String(K.enlaces[k] || "").trim()) p.enlaces[k] = K.enlaces[k]; });
+  if (K.formatos) ["ebook", "blanda", "dura"].forEach(k => { const f = K.formatos[k] || {}; Object.keys(f).forEach(c => { if (f[c] !== "" && f[c] != null) p.formatos[k][c] = f[c]; }); });
+  const MOD = { cabecera: "Imagen de cabecera con texto", superpuesto: "Imagen con texto superpuesto", izquierda: "Imagen a la izquierda y texto", derecha: "Imagen a la derecha y texto", tres: "Tres imágenes con texto", comparativa: "Comparativa (tus otros libros)", texto: "Solo texto", logo: "Logo o firma de autora" };
+  (K.aplus || []).forEach(m => { if (!p.aplus.some(x => x.titulo === (m.titulo || "") && x.texto === (m.texto || ""))) p.aplus.push({ id: uid(), tipo: MOD[m.tipo] || "Solo texto", titulo: m.titulo || "", texto: m.texto || "" }); });
+  (R.fases || []).forEach(f => {
+    const nueva = { nombre: f.nombre || "Fase", estado: ESTADO_FASE[f.estado] || "Pendiente", quien: f.quien || "", fecha: f.fecha || "", archivo: f.archivo || "" };
+    const ya = p.fases.find(x => x.nombre.toLowerCase() === nueva.nombre.toLowerCase() || (x.nombre === "Maquetación ebook" && /^maquetación ebook/i.test(nueva.nombre)));
+    if (ya) Object.keys(nueva).forEach(k => { if (k !== "nombre" && nueva[k] && (k !== "estado" || nueva[k] !== "Pendiente")) ya[k] = nueva[k]; });
+    else p.fases.push(Object.assign({ id: uid() }, nueva));
+  });
+  (R.betas || []).forEach(b => { if (!p.betas.some(x => x.nombre && x.nombre === b.nombre)) p.betas.push({ id: uid(), nombre: b.nombre || "", papel: b.papel || "Lectora beta", enviado: b.enviado || "", devuelto: b.devuelto || "", caps: b.caps || "", notas: b.notas || "", resena: b.resena ? "Reseña hecha" : "Sin reseña" }); });
+  put("lanzFecha", L.fecha); put("preventaFecha", L.preventa);
+  let nt = 0;
+  (L.tareas || []).forEach(t => {
+    if (p.tareas.some(x => x.tarea.toLowerCase() === String(t.texto || "").toLowerCase())) return;
+    const dias = parseInt(t.dias, 10) || 0;
+    const fase = CAT_FASE[t.cat] || (dias > 0 ? "Después del lanzamiento" : "Preventa y promoción");
+    p.tareas.push({ id: uid(), fase, tarea: t.texto || "Tarea", herr: t.cat || "", fecha: p.lanzFecha ? sumarDias(p.lanzFecha, dias) : "", importancia: "Media", estado: t.hecho ? "Hecho" : "Pendiente", coste: "", notas: "" }); nt++;
+  });
+  const RED = { "IG + TikTok": "Todas", Stories: "Instagram" }, TIPO = { Story: "Stories" };
+  let np = 0;
+  (pub.redes || []).forEach(r => {
+    if (S.posts.some(x => x.fecha === (r.fecha || "") && x.contenido === (r.tema || ""))) return;
+    const estado = r.publicado ? "Publicado" : r.programado ? "Programado" : r.captionListo ? "Copy listo" : (r.grabado || r.editado) ? "Diseñado" : "Idea";
+    S.posts.push({ id: uid(), fecha: r.fecha || "", red: RED[r.donde] || r.donde || "Instagram", tipo: TIPO[r.formato] || r.formato || "Post", contenido: r.tema || "", copy: [r.gancho, r.caption].filter(Boolean).join("\n\n"), hashtags: r.hashtags || "", cta: r.cta || "", estado }); np++;
+  });
+  let nc = 0;
+  (pub.citas || []).concat(n.citas || []).forEach(c => {
+    const t = String(c.texto || "").trim(); if (!t || p.frases.some(f => String(f.frase).replace(/^[«"]|[»"]$/g, "") === t)) return;
+    p.frases.push({ id: uid(), frase: "«" + t + "»", personaje: "", capitulo: c.cap || "", idea: "", estado: "Idea" }); nc++;
+  });
+  save(); location.hash = "libro"; render();
+  toast(`Traída «${p.titulo}»: ficha, KDP y producción${nt ? `, ${nt} tareas` : ""}${np ? `, ${np} publicaciones` : ""}${nc ? `, ${nc} citas` : ""}.`);
+}
+function abrirNovelia() {
+  const p = P();
+  openModal(`<h2>Traer de Novelia Studio</h2>
+    <p style="margin:0">En Novelia, ve a <b>Citas › Pasar al Kit Escritoras</b> y descarga el archivo. Después elígelo aquí.</p>
+    <p class="hint" style="margin:0">Se traen el título, las palabras escritas, la sinopsis, las citas y, si los tenías en Novelia, los datos de Amazon, producción, lanzamiento y redes. Lo que ya tengas aquí no se borra: solo se completa.</p>
+    <label class="btn" style="display:inline-flex;align-items:center;justify-content:center">Elegir el archivo de Novelia<input type="file" id="nvFile" accept=".json,application/json" style="display:none"></label>
+    <p class="hint" id="nvMsg" style="margin:0"></p>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancelar</button></div>`, box => {
+    $("#nvFile", box).addEventListener("change", e => {
+      const f = e.target.files && e.target.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        let d; try { d = JSON.parse(String(r.result)); } catch (err) { d = null; }
+        const msg = $("#nvMsg", box);
+        if (!d || d.tipo !== "novelia-para-kit" || !d.novela) { msg.textContent = "Ese archivo no viene de Novelia Studio. Descárgalo desde Citas › Pasar al Kit Escritoras."; return; }
+        const t = (d.novela.publicar && d.novela.publicar.ficha && d.novela.publicar.ficha.titulo) || d.novela.titulo || "la novela";
+        msg.innerHTML = `Archivo de «${esc(t)}». ¿Dónde lo pongo?<div class="acts" style="justify-content:flex-start"><button class="btn sm" type="button" id="nvAqui">Completar «${esc(p.titulo)}»</button><button class="btn ghost sm" type="button" id="nvNueva">Crear una novela nueva</button></div>`;
+        $("#nvAqui", box).addEventListener("click", () => { closeModal(); importarNovelia(d, p); });
+        $("#nvNueva", box).addEventListener("click", () => { closeModal(); importarNovelia(d, null); });
+      };
+      r.readAsText(f);
+    });
+  });
 }
 
 /* 6. Pedidos */
@@ -791,6 +1088,11 @@ function applyEdit(el) {
   if (!d.s) return false;
   const base = d.s === "g" ? S : P();
   if (d.arr) { base[d.arr][+d.i] = el.value; return true; }
+  if (d.path) {
+    const ks = d.path.split("."); let o = base;
+    for (let i = 0; i < ks.length - 1; i++) { if (!o[ks[i]] || typeof o[ks[i]] !== "object") o[ks[i]] = {}; o = o[ks[i]]; }
+    o[ks[ks.length - 1]] = readVal(el); return true;
+  }
   if (d.l) { const it = base[d.l].find(x => x.id === d.id); if (!it) return false; it[d.k] = readVal(el); return true; }
   if (d.k) { base[d.k] = readVal(el); return true; }
   return false;
@@ -802,9 +1104,16 @@ document.addEventListener("input", e => {
   save();
   const d = el.dataset;
   if (el.tagName === "TEXTAREA") autosize(el);
-  if (d.day) { refreshEscritura(); return; }
-  if (d.arr === "kdp") { const c = $(`[data-count="kdp${d.i}"]`); if (c) { c.textContent = el.value.length + "/50"; c.classList.toggle("over", el.value.length > 50); } return; }
+  if (d.day) return;
+  if (d.arr === "kdp") {
+    const c = $(`[data-count="kdp${d.i}"]`); if (c) { c.textContent = el.value.length + "/50"; c.classList.toggle("over", el.value.length > 50); }
+    $$("[data-kwav]").forEach(a => { a.textContent = avisosKw(P(), P().kdp[+a.dataset.kwav]).join(" · "); });
+    return;
+  }
+  if (d.max && d.k) { const c = $(`[data-countfor="${d.k}"]`); if (c) { c.textContent = el.value.length + "/" + d.max; c.classList.toggle("over", el.value.length > +d.max); } }
   if (d.k === "sinopsis") { const c = $('[data-count="sinopsis"]'); if (c) c.textContent = words(el.value) + " palabras"; }
+  if (d.k === "kdpDesc") { pintarDesc(); return; }
+  if (d.l === "frases" && view.route === "redes") pintarTarjeta();
   if (d.k === "titulo" && !d.l) { renderNav(); return; }
   // celdas calculadas de la fila
   const tr = el.closest("[data-row]");
@@ -830,7 +1139,14 @@ document.addEventListener("input", e => {
 document.addEventListener("change", e => {
   const el = e.target;
   if (!el.closest("#view")) return;
+  if (el.id === "tjFrase") { tarj.frase = el.value; pintarTarjeta(); return; }
+  if (el.id === "fPortada") {
+    const f = el.files && el.files[0]; if (!f) return;
+    leerPortada(f).then(url => { P().portada = url; save(); render(); toast("Portada guardada"); }).catch(() => toast("No he podido leer esa imagen. Prueba con un JPG o PNG."));
+    return;
+  }
   if (el.matches("select, input[type=date]")) { applyEdit(el); save(); render(); return; }
+  if (el.type === "checkbox" && el.dataset.path) { render(); return; }
   if (el.dataset.k === "objetivoPalabras" || el.closest(".tiles") === null && ["pvp", "unidades", "costeEjemplar"].includes(el.dataset.k)) { render(); }
 });
 
@@ -873,7 +1189,33 @@ document.addEventListener("click", e => {
     const inp = $(`[data-row="${last.id}"] [data-k="contenido"]`); if (inp) inp.focus();
     return;
   }
-  if (t.id === "btnPlan") { openPlan(); return; }
+  if (d.tf) { tarj.formato = d.tf; render(); return; }
+  if (d.te) { tarj.estilo = d.te; render(); return; }
+  if (d.tag) {
+    const ta = $("#kdpDesc"); if (!ta) return;
+    const s0 = ta.selectionStart, s1 = ta.selectionEnd, sel = ta.value.slice(s0, s1);
+    const ins = d.tag === "br" ? "<br>" : d.tag === "li" ? `<ul>\n<li>${sel || "Elemento"}</li>\n</ul>` : `<${d.tag}>${sel}</${d.tag}>`;
+    ta.setRangeText(ins, s0, s1, "end"); ta.focus(); P().kdpDesc = ta.value; save(); pintarDesc();
+    return;
+  }
+  if (t.id === "descDesde") {
+    const p = P(), txt = String(p.sinopsis || "").trim();
+    if (!txt) { toast("Escribe primero la sinopsis larga en Libro."); return; }
+    const prev = p.kdpDesc;
+    p.kdpDesc = txt.split(/\n\s*\n|\n/).map(x => x.trim()).filter(Boolean).map(x => `<p>${esc(x)}</p>`).join("\n");
+    save(); render(); toast("Sinopsis traída. Ahora dale formato.", () => { p.kdpDesc = prev; });
+    return;
+  }
+  if (t.id === "descCopiar") { copiar(P().kdpDesc, "Descripción copiada: pégala en KDP"); return; }
+  if (t.id === "copiarKw") { copiar(P().kdp.filter(x => String(x).trim()).join("\n"), "Palabras clave copiadas"); return; }
+  if (t.id === "repartir") { repartirFechas(); return; }
+  if (t.id === "planRedes") { planRedes(); return; }
+  if (t.id === "ics") { descargarIcs(); return; }
+  if (t.id === "webCopiar") { copiar(htmlWeb(P()), "HTML copiado: pégalo en un bloque HTML personalizado"); return; }
+  if (t.id === "webPortada") { fetch(P().portada).then(r => r.blob()).then(b => descargar(b, "portada.jpg")); return; }
+  if (t.id === "tjPng") { const cv = $("#tjC"); if (cv) cv.toBlob(b => descargar(b, `cita-${tarj.formato}.png`), "image/png"); return; }
+  if (t.id === "btnNovelia") { abrirNovelia(); return; }
+  if (t.id === "quitarPortada") { const p = P(), prev = p.portada; p.portada = ""; save(); render(); toast("Portada quitada", () => { p.portada = prev; }); return; }
   if (t.id === "btnDelProj") { confirmDelProj(); return; }
 });
 
@@ -883,7 +1225,7 @@ $("#btnNewProj").addEventListener("click", () => {
   openModal(`<h2>Nueva novela</h2><label class="field"><span>Título</span><input type="text" id="npT" placeholder="Título provisional"></label>
     <p class="hint" style="margin:0">Empieza con la checklist completa de lanzamiento. Las redes, ventas y prensa son comunes a todas tus novelas.</p>
     <div class="acts"><button class="btn ghost" type="button" data-close>Cancelar</button><button class="btn" type="button" id="npOk">Crear</button></div>`, box => {
-    const go = () => { const p = newProject($("#npT", box).value.trim() || "Nueva novela"); S.proyectos.push(p); S.activo = p.id; closeModal(); save(); location.hash = "novela"; render(); };
+    const go = () => { const p = newProject($("#npT", box).value.trim() || "Nueva novela"); S.proyectos.push(p); S.activo = p.id; closeModal(); save(); location.hash = "libro"; render(); };
     $("#npOk", box).addEventListener("click", go);
     $("#npT", box).addEventListener("keydown", e => { if (e.key === "Enter") go(); });
   });
@@ -891,7 +1233,7 @@ $("#btnNewProj").addEventListener("click", () => {
 function confirmDelProj() {
   const p = P();
   if (S.proyectos.length < 2) { toast("Es tu única novela: crea otra antes de eliminar esta."); return; }
-  openModal(`<h2>¿Eliminar «${esc(p.titulo)}»?</h2><p style="margin:0">Se borran su ficha, escritura, checklist, pedidos y costes. Las redes, ventas y prensa se quedan.</p>
+  openModal(`<h2>¿Eliminar «${esc(p.titulo)}»?</h2><p style="margin:0">Se borran su ficha, Amazon KDP, producción, checklist, citas, pedidos y costes. Las redes, ventas y prensa se quedan.</p>
     <div class="acts"><button class="btn ghost" type="button" data-close>Cancelar</button><button class="btn danger" type="button" id="dpOk">Eliminar novela</button></div>`, box => {
     $("#dpOk", box).addEventListener("click", () => { S.proyectos = S.proyectos.filter(x => x.id !== p.id); S.activo = S.proyectos[0].id; closeModal(); save(); render(); });
   });
@@ -951,7 +1293,7 @@ $("#btnReset").addEventListener("click", () => {
     $("#rsOk", box).addEventListener("click", () => {
       const p = newProject("Mi novela");
       S = { v: 1, activo: p.id, proyectos: [p], posts: [], ventas: [], prensa: [], colabs: [] };
-      closeModal(); save(); location.hash = "novela"; render();
+      closeModal(); save(); location.hash = "libro"; render();
     });
   });
 });
@@ -961,7 +1303,8 @@ $("#mPrev").addEventListener("click", () => { view.mes = addMonth(view.mes, -1);
 $("#mNext").addEventListener("click", () => { view.mes = addMonth(view.mes, 1); render(); });
 $("#mHoy").addEventListener("click", () => { view.mes = monthOf(TODAY); render(); });
 function route() {
-  const h = (location.hash || "").replace("#", "");
+  let h = (location.hash || "").replace("#", "");
+  if (ALIAS[h]) { h = ALIAS[h]; history.replaceState(null, "", "#" + h); }
   view.route = ROUTES.some(r => r[0] === h) ? h : "inicio";
   render();
   window.scrollTo(0, 0);
@@ -980,7 +1323,7 @@ if (enClaude) connectDb(); else setSave("local", "Guardado en este navegador");
 // Primera vez: elegir entre ver el ejemplo o empezar con su novela
 if (!guardado && !enClaude) {
   openModal(`<div class="eyebrow">Te damos la bienvenida</div><h2>Kit Escritoras</h2>
-    <p style="margin:0">Organiza tu novela de la idea a la librería: escaleta y personajes, calendario de escritura, checklist de lanzamiento, redes, pedidos, cuentas y prensa.</p>
+    <p style="margin:0">Todo lo que pasa cuando tu novela está escrita: ficha del libro, Amazon KDP, producción, checklist de lanzamiento, redes, pedidos, cuentas, prensa y la página para tu web.</p>
     <p class="hint" style="margin:0">Todo se guarda en este navegador, sin cuentas ni contraseñas. Desde «Copia de seguridad» puedes descargar tus datos cuando quieras.</p>
     <label class="field"><span>Título de tu novela</span><input type="text" id="wTit" placeholder="Puedes cambiarlo luego"></label>
     <div class="acts"><button class="btn ghost" type="button" id="wEj">Ver primero un ejemplo</button><button class="btn" type="button" id="wGo">Empezar con mi novela</button></div>`, box => {
@@ -988,7 +1331,7 @@ if (!guardado && !enClaude) {
     $("#wGo", box).addEventListener("click", () => {
       const p = newProject($("#wTit", box).value.trim() || "Mi novela");
       S = { v: 1, activo: p.id, proyectos: [p], posts: [], ventas: [], prensa: [], colabs: [] };
-      closeModal(); save(); location.hash = "novela"; render();
+      closeModal(); save(); location.hash = "libro"; render();
     });
   });
 }
