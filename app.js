@@ -476,8 +476,10 @@ const ROUTES = [
 const ALIAS = { novela: "libro", escritura: "inicio" };
 const MONTHLY = ["inicio", "redes", "cuentas", "lanzamiento", "catalogo", "negocio"];
 
+const NAV_ICONOS = {"inicio": "<rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M3 10h18M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2\"/>", "libro": "<path d=\"M4 19.5V5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5 1.5 1.5 0 0 0 5.5 22H20v-4\"/><path d=\"M8 7h8\"/>", "kdp": "<path d=\"M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z\"/><path d=\"M3 7.5 12 12l9-4.5M12 12v9\"/>", "produccion": "<path d=\"M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z\"/>", "lanzamiento": "<path d=\"M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2\"/><path d=\"M14 4c3-1.5 6-1 6-1s.5 3-1 6l-6 6-5-5z\"/><path d=\"M9 10H5l3-3h4M14 15v4l3-3v-4\"/><circle cx=\"15.5\" cy=\"8.5\" r=\"1.3\"/>", "redes": "<rect x=\"6\" y=\"2.5\" width=\"12\" height=\"19\" rx=\"2.5\"/><path d=\"M10.5 18.5h3\"/><path d=\"m10 9 4.5 2.5L10 14z\"/>", "pedidos": "<path d=\"M4 7h16l-1.6 11.2A2 2 0 0 1 16.4 20H7.6a2 2 0 0 1-2-1.8z\"/><path d=\"M9 7V5a3 3 0 0 1 6 0v2\"/>", "cuentas": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M15.5 8.5a4 4 0 1 0 0 7M7 11h6M7 13.5h6\"/>", "catalogo": "<rect x=\"3.5\" y=\"4\" width=\"4\" height=\"16\" rx=\"1\"/><rect x=\"9.5\" y=\"4\" width=\"4\" height=\"16\" rx=\"1\"/><path d=\"m15.5 5.2 3.6-1 3.4 14.6-3.6 1z\"/>", "negocio": "<path d=\"M3 20h18M6 16v-4M10.5 16V8M15 16v-6M19.5 16V5\"/>", "prensa": "<path d=\"M3 10v4h3l7 4V6L6 10z\"/><path d=\"M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11\"/>", "web": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3 12h18M12 3c2.5 2.5 3.7 5.5 3.7 9s-1.2 6.5-3.7 9c-2.5-2.5-3.7-5.5-3.7-9S9.5 5.5 12 3z\"/>", "ajustes": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z\"/>"};
 function renderNav() {
-  $("#nav").innerHTML = ROUTES.map(([k, t], i) => `<a href="#${k}" ${view.route === k ? 'aria-current="page"' : ""}><span class="n">${i + 1}</span>${t}</a>`).join("");
+  $("#nav").innerHTML = ROUTES.map(([k, t]) => `<a href="#${k}" ${k === "ajustes" ? 'class="abajo" ' : ""}${view.route === k ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${NAV_ICONOS[k] || ""}</svg><span>${t}</span></a>`).join("");
+  if (window.innerWidth <= 820) { const nav = $("#nav"), cur = $("#nav [aria-current]"); if (cur) requestAnimationFrame(() => { nav.scrollLeft = cur.offsetLeft - (nav.clientWidth - cur.offsetWidth) / 2; }); }
   $("#projSel").innerHTML = S.proyectos.map(p => `<option value="${p.id}"${p.id === S.activo ? " selected" : ""}>${esc(p.titulo || "Sin título")}</option>`).join("");
   $("#mLbl").textContent = mesLabel(view.mes);
   $("#monthNav").style.visibility = MONTHLY.includes(view.route) ? "visible" : "hidden";
@@ -2003,7 +2005,8 @@ function descargarCopia() {
 }
 function pintarUltimaCopia() {
   const b = $("#btnBackup"); if (!b) return;
-  b.textContent = S.ultimaCopia ? "Copia de seguridad (última: " + dayLabel(S.ultimaCopia) + ")" : "Copia de seguridad";
+  b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Copia${S.ultimaCopia ? `<small>${esc(dayLabel(S.ultimaCopia))}</small>` : ""}`;
+  b.title = S.ultimaCopia ? "Copia de seguridad · última: " + dayLabel(S.ultimaCopia) : "Copia de seguridad";
 }
 $("#btnBackup").addEventListener("click", () => {
   openModal(`<h2>Copia de seguridad</h2>
