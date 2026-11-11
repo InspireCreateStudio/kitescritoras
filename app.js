@@ -1616,23 +1616,162 @@ function cargarCentroControl(d) {
     if (d.negocio) Object.assign(negocio(), d.negocio);
   } };
 }
+/* ---- Leer directamente el Excel «Centro de control» (.xlsx) ---- */
+function cargarLibreriaExcel() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  return new Promise((ok, mal) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    s.onload = () => window.XLSX ? ok(window.XLSX) : mal(new Error("sin XLSX"));
+    s.onerror = () => mal(new Error("No se ha podido cargar el lector de Excel. Comprueba que tienes internet."));
+    document.head.appendChild(s);
+  });
+}
+function excelACentro(X, wb) {
+  const hoja = n => wb.Sheets[n] || null;
+  const celda = (ws, ref) => { const c = ws && ws[ref]; return !c || c.t === "e" ? null : c.v; };
+  const ultima = ws => ws && ws["!ref"] ? X.utils.decode_range(ws["!ref"]).e.r + 1 : 0;
+  function* filas(nombre, desde, hasta) {
+    const ws = hoja(nombre); if (!ws) return;
+    const fin = hasta || ultima(ws);
+    for (let r = desde; r <= fin; r++) yield { r, v: col => celda(ws, col + r) };
+  }
+  const t = v => {
+    if (v === null || v === undefined) return "";
+    const s = String(v).split(/\r?\n/).map(x => x.trim()).filter(Boolean).join(" · ");
+    return ["-", "#VALUE!", "None"].includes(s) ? "" : s;
+  };
+  const n = v => {
+    if (v === null || v === undefined || v === "" || v === "-") return "";
+    const x = typeof v === "number" ? v : Number(String(v).trim());
+    return Number.isFinite(x) ? Math.round(x * 10000) / 10000 : "";
+  };
+  const ymd = v => {
+    if (typeof v === "number" && v > 20000 && v < 80000) {
+      const d = new Date(Math.round((v - 25569) * 86400000));
+      return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate());
+    }
+    if (v instanceof Date) return v.getFullYear() + "-" + pad(v.getMonth() + 1) + "-" + pad(v.getDate());
+    const m = String(v || "").trim().match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+    return m ? `${m[1]}-${m[2]}-${m[3] || "01"}` : "";
+  };
+  const ym = v => ymd(v).slice(0, 7);
+  const si = v => t(v).toLowerCase().startsWith("s");
+  const out = { tipo: "centro-control-para-kit", origen: "Excel Centro de control", creado: TODAY };
+
+  out.catalogo = [];
+  for (const { v } of filas("BIBLIOTECA", 8)) {
+    if (!t(v("A"))) continue;
+    out.catalogo.push({ titulo: t(v("A")), serie: t(v("F")), genero: t(v("G")), estado: t(v("I")) || "Activo", fecha: ymd(v("M")),
+      asin: /^[A-Z0-9]{10}$/.test(t(v("R"))) ? t(v("R")) : "", isbn: t(v("S")) || t(v("T")), enlace: t(v("J")), notas: t(v("B")) });
+  }
+  // Amazon KDP: ventas desde la fila 17 hasta el bloque «KENP · PEGA AQUÍ», y KENP después
+  out.kdpVentas = [];
+  const kws = hoja("AMAZON KDP");
+  if (kws) {
+    let marca = 0;
+    for (let r = 17; r <= ultima(kws); r++) if (/^KENP/i.test(t(celda(kws, "A" + r)))) { marca = r; break; }
+    for (const { v } of filas("AMAZON KDP", 17, marca ? marca - 1 : ultima(kws))) {
+      if (!t(v("B"))) continue;
+      const tx = t(v("G")).toLowerCase(), mes = ym(v("A"));
+      if (!mes) continue;
+      const l = { mes, titulo: t(v("B")), asin: t(v("D")), tienda: t(v("E")),
+        formato: tx.includes("blanda") || tx.includes("paperback") ? "Tapa blanda" : tx.includes("dura") || tx.includes("hardcover") ? "Tapa dura" : "Ebook",
+        uds: n(v("J")) || 0, regalias: n(v("N")) || 0, moneda: t(v("O")) || "EUR" };
+      if (n(v("P")) !== "") l.eur = n(v("P"));
+      out.kdpVentas.push(l);
+    }
+    if (marca) for (const { v } of filas("AMAZON KDP", marca + 1)) {
+      if (!t(v("B")) || n(v("F")) === "") continue;
+      const mes = ym(v("A")); if (!mes) continue;
+      out.kdpVentas.push({ mes, titulo: t(v("B")), asin: t(v("D")), tienda: t(v("E")), formato: "KENP", uds: n(v("F")), regalias: "", moneda: "EUR" });
+    }
+  }
+  out.ingresos = [];
+  for (const { v } of filas("INGRESOS NO KDP", 8)) {
+    if (!(t(v("B")) || n(v("E")))) continue;
+    out.ingresos.push({ fecha: ymd(v("A")), concepto: t(v("B")), linea: t(v("C")), cliente: t(v("D")), bruto: n(v("E")), iva: n(v("G")) || 0, irpf: n(v("F")) || 0, irpfManual: true,
+      estado: t(v("I")) || "Pendiente", factura: t(v("K")), notas: t(v("M")) });
+  }
+  out.gastosNeg = [];
+  for (const { v } of filas("GASTOS", 8)) {
+    if (!t(v("B"))) continue;
+    out.gastosNeg.push({ fecha: ymd(v("A")), concepto: t(v("B")), categoria: t(v("C")) || "Otros", proveedor: t(v("E")), libro: t(v("F")), base: n(v("G")), iva: n(v("H")) || 0,
+      pagado: si(v("J")) ? "Sí" : "No", deducible: t(v("L")).toLowerCase().startsWith("n") ? "No" : "Sí", notas: [t(v("D")), t(v("M"))].filter(Boolean).join(" · ") });
+  }
+  out.directa = [];
+  for (const { v } of filas("VENTA DIRECTA", 8)) {
+    if (!(t(v("C")) || t(v("D")))) continue;
+    let est = t(v("O")) || "Pendiente"; if (est === "Enviado" && t(v("P")) === "Recibido") est = "Recibido";
+    out.directa.push({ fecha: ymd(v("A")), cliente: t(v("C")), libro: t(v("D")), formato: t(v("E")) || "Edición especial", uds: n(v("F")) || 0, pvp: n(v("G")),
+      costeUd: n(v("J")), envioCobrado: n(v("K")) || 0, costeEnvio: n(v("L")) || 0, otros: n(v("M")) || 0, estado: est, pedido: t(v("B")) });
+  }
+  const anio = String(celda(hoja("CONFIG"), "B9") || TODAY.slice(0, 4));
+  out.redesMes = [];
+  let i = 0;
+  for (const { v } of filas("CRECIMIENTO REDES", 13, 24)) {
+    i++;
+    const vals = { instagram: n(v("B")), tiktok: n(v("D")), youtube: n(v("F")), newsletter: n(v("H")) };
+    if (Object.values(vals).some(x => x !== "")) out.redesMes.push(Object.assign({ mes: anio + "-" + pad(i), notas: "" }, vals));
+  }
+  out.derechos = [];
+  for (const { v } of filas("DERECHOS", 9)) {
+    const a = t(v("A")); if (!a || a.startsWith("🧪")) continue;
+    out.derechos.push({ libro: a, tipo: t(v("B")), territorio: t(v("C")), editorial: t(v("D")), firma: ymd(v("F")), fin: ymd(v("H")), estado: t(v("G")), anticipo: n(v("I")),
+      cobrado: si(v("J")) ? "Sí" : "No", regalias: n(v("M")), notas: t(v("Q")) });
+  }
+  out.resenas = [];
+  for (const { v } of filas("RESEÑAS", 8)) {
+    if (!t(v("A"))) continue;
+    out.resenas.push({ libro: t(v("A")), fecha: ymd(v("B")), plataforma: t(v("C")), nota: n(v("E")), num: n(v("F")), objetivo: n(v("G")), notas: t(v("I")) });
+  }
+  out.eventos = [];
+  for (const { v } of filas("EVENTOS", 11)) {
+    if (!t(v("A"))) continue;
+    out.eventos.push({ nombre: t(v("A")), tipo: t(v("B")), lugar: t(v("C")), fecha: ymd(v("D")), tarifa: n(v("F")), costes: n(v("G")), libros: n(v("L")), ventas: n(v("M")), valoracion: "Sin valorar", notas: t(v("O")) });
+  }
+  out.objetivos = [];
+  for (const { v } of filas("OBJETIVOS", 8)) {
+    if (!t(v("A"))) continue;
+    out.objetivos.push({ area: t(v("A")), meta: n(v("B")), actual: n(v("E")), notas: t(v("H")) });
+  }
+  const cfg = hoja("CONFIG"), cambio = {};
+  for (let r = 9; r <= 19; r++) { const k = t(celda(cfg, "O" + r)), val = n(celda(cfg, "P" + r)); if (k && val !== "") cambio[k] = val; }
+  out.negocio = { objetivoAnual: n(celda(cfg, "B10")), cambio, kenpTarifa: 0.0042, actividad: t(celda(hoja("RESUMEN GESTORÍA"), "D11")) || "Autora" };
+  // Sin ninguna de las hojas del Centro de control, no es ese Excel
+  if (!["BIBLIOTECA", "AMAZON KDP", "GASTOS", "VENTA DIRECTA", "INGRESOS NO KDP"].some(hoja)) return null;
+  return out;
+}
+
 const NOMBRES_LISTAS = { catalogo: "libros", kdpVentas: "líneas de Amazon", ingresos: "ingresos", gastosNeg: "gastos", directa: "ventas directas", redesMes: "meses de seguidores", derechos: "contratos", resenas: "recuentos de reseñas", eventos: "eventos", objetivos: "objetivos", historico: "años apuntados a mano" };
 function abrirCentroControl() {
   openModal(`<h2>Traer datos del Centro de control</h2>
-    <p style="margin:0">Elige el archivo <b>centro-control-para-kit.json</b>. Se cargan tu catálogo, las ventas de Amazon, los ingresos, gastos, venta directa, impuestos y el resto de la parte de negocio.</p>
-    <label class="btn ghost" style="display:inline-flex;align-items:center;align-self:flex-start">Elegir archivo<input type="file" id="ccFile" accept=".json,application/json" style="display:none"></label>
+    <p style="margin:0">Elige tu Excel <b>CENTRO CONTROL</b> (.xlsx) tal cual, o el archivo <b>centro-control-para-kit.json</b>. Se cargan tu catálogo, las ventas de Amazon, los ingresos, gastos, venta directa, derechos, reseñas, eventos y objetivos.</p>
+    <p class="hint" style="margin:0">Ojo: sustituye lo que tengas en esas secciones del Kit. Si has apuntado cosas aquí que no están en el Excel, haz antes una copia de seguridad.</p>
+    <label class="btn ghost" style="display:inline-flex;align-items:center;align-self:flex-start">Elegir archivo<input type="file" id="ccFile" accept=".xlsx,.xlsm,.json,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none"></label>
     <p class="hint" id="ccMsg" style="margin:0"></p>
     <div class="acts"><button class="btn ghost" type="button" data-close>Cerrar</button></div>`, box => {
     $("#ccFile", box).addEventListener("change", e => {
       const f = e.target.files && e.target.files[0]; if (!f) return;
-      const r = new FileReader();
-      r.onload = () => {
-        let d; try { d = JSON.parse(String(r.result)); } catch (er) { d = null; }
-        const res = cargarCentroControl(d), msg = $("#ccMsg", box);
+      const msg = $("#ccMsg", box);
+      const seguir = d => {
+        const res = cargarCentroControl(d);
         if (typeof res === "string") { msg.textContent = res; return; }
         msg.innerHTML = `Trae ${res.pend.map(([k, n]) => n + " " + NOMBRES_LISTAS[k]).join(", ")}. Sustituye lo que haya ahora en esas secciones. <button class="btn sm" type="button" id="ccSi">Cargar</button>`;
         $("#ccSi", box).addEventListener("click", () => { res.aplicar(); closeModal(); save(); location.hash = "negocio"; view.nsub = "resumen"; render(); toast("Datos del Centro de control cargados"); });
       };
+      if (/\.xls[xm]$/i.test(f.name)) {
+        msg.textContent = "Leyendo el Excel… (puede tardar unos segundos)";
+        Promise.all([cargarLibreriaExcel(), f.arrayBuffer()]).then(([X, buf]) => {
+          const wb = X.read(new Uint8Array(buf), { type: "array", cellDates: false, cellStyles: false, cellFormula: false, sheetStubs: false });
+          const d = excelACentro(X, wb);
+          if (!d) { msg.textContent = "Ese Excel no parece el Centro de control: no tiene las hojas BIBLIOTECA, AMAZON KDP, GASTOS…"; return; }
+          seguir(d);
+        }).catch(er => { msg.textContent = er && er.message && er.message.startsWith("No se ha podido") ? er.message : "No he podido leer ese Excel. ¿Está guardado como .xlsx?"; });
+        return;
+      }
+      const r = new FileReader();
+      r.onload = () => { let d; try { d = JSON.parse(String(r.result)); } catch (er) { d = null; } seguir(d); };
       r.readAsText(f);
     });
   });
