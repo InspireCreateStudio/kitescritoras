@@ -1,6 +1,6 @@
 # Kit Escritoras
 
-App para planificar tu novela romántica de principio a fin: la historia, la escritura diaria, el lanzamiento, las redes, los pedidos, las cuentas y la prensa.
+App para publicar y vender tu novela romántica: ficha del libro, Amazon KDP, producción, lanzamiento, redes, pedidos, cuentas, prensa y, en Catálogo y Negocio, todos tus libros, las ventas de Amazon, otros ingresos, gastos, venta directa e impuestos.
 
 Funciona como el Planner: se instala en el móvil y en el ordenador, y va sin conexión. Los datos se guardan en el navegador de cada aparato. Usa «Copia de seguridad» para pasarlos de un aparato a otro.
 

@@ -315,7 +315,7 @@ function save() {
 
 function normalize(st) {
   if (!st || !Array.isArray(st.proyectos) || !st.proyectos.length) return seed();
-  ["posts", "ventas", "prensa", "colabs"].forEach(k => { if (!Array.isArray(st[k])) st[k] = []; });
+  ["posts", "ventas", "prensa", "colabs", "catalogo", "kdpVentas", "ingresos", "gastosNeg", "directa", "redesMes", "derechos", "resenas", "eventos", "objetivos"].forEach(k => { if (!Array.isArray(st[k])) st[k] = []; });
   st.proyectos.forEach(p => {
     const base = newProject(p.titulo);
     Object.keys(base).forEach(k => { if (p[k] === undefined || p[k] === null) p[k] = base[k]; });
@@ -404,6 +404,7 @@ function cellHTML(c, r, scope, list, p) {
       return `<td><select ${a}${lab} class="${c.type === "pill" ? "pill " + tone(v) : ""}">${!c.opts.includes(v) && v ? `<option selected>${esc(v)}</option>` : ""}${opts}</select></td>`;
     }
     case "date": return `<td${st}><input type="date" ${a}${lab} value="${esc(v)}"></td>`;
+    case "month": return `<td${st}><input type="month" ${a}${lab} value="${esc(v)}" placeholder="aaaa-mm"></td>`;
     case "money": return `<td${st}><input type="number" step="0.01" inputmode="decimal" ${a}${lab} value="${esc(v)}" placeholder="0,00"></td>`;
     case "number": return `<td${st}><input type="number" inputmode="numeric" ${a}${lab} value="${esc(v)}"></td>`;
     case "area": return `<td${st}><textarea rows="1" ${a}${lab}>${esc(v)}</textarea></td>`;
@@ -452,6 +453,7 @@ function ventasMes(ym) {
     if (GASTOS.includes(v.concepto)) gas += num(v.importe);
     else { ing += num(v.importe); if (v.concepto.startsWith("KENP")) kenp += num(v.uds); else uds += num(v.uds); }
   });
+  if (Array.isArray(S.kdpVentas) && S.kdpVentas.length) { const k = kdpMes(ym); ing += k.total; uds += k.uds; kenp += k.kenp; }
   return { ing, gas, neto: ing - gas, uds, kenp };
 }
 function pedidosStats(p) {
@@ -468,11 +470,11 @@ function pedidosStats(p) {
 /* ---------- Vistas ---------- */
 const ROUTES = [
   ["inicio", "Mi mes"], ["libro", "Libro"], ["kdp", "Amazon KDP"], ["produccion", "Producción"], ["lanzamiento", "Lanzamiento"],
-  ["redes", "Redes y citas"], ["pedidos", "Pedidos"], ["cuentas", "Cuentas"], ["prensa", "Prensa y colabs"], ["web", "Web"], ["ajustes", "Ajustes"]
+  ["redes", "Redes y citas"], ["pedidos", "Pedidos"], ["cuentas", "Cuentas"], ["catalogo", "Catálogo"], ["negocio", "Negocio"], ["prensa", "Prensa y colabs"], ["web", "Web"], ["ajustes", "Ajustes"]
 ];
 // Direcciones de versiones anteriores
 const ALIAS = { novela: "libro", escritura: "inicio" };
-const MONTHLY = ["inicio", "redes", "cuentas", "lanzamiento"];
+const MONTHLY = ["inicio", "redes", "cuentas", "lanzamiento", "catalogo", "negocio"];
 
 function renderNav() {
   $("#nav").innerHTML = ROUTES.map(([k, t], i) => `<a href="#${k}" ${view.route === k ? 'aria-current="page"' : ""}><span class="n">${i + 1}</span>${t}</a>`).join("");
@@ -484,7 +486,7 @@ function renderNav() {
 function render() {
   if (!S) return;
   renderNav();
-  const fn = { inicio: vInicio, libro: vLibro, kdp: vKdp, produccion: vProduccion, lanzamiento: vLanzamiento, redes: vRedes, pedidos: vPedidos, cuentas: vCuentas, prensa: vPrensa, web: vWeb, ajustes: vAjustes }[view.route] || vInicio;
+  const fn = { inicio: vInicio, libro: vLibro, kdp: vKdp, produccion: vProduccion, lanzamiento: vLanzamiento, redes: vRedes, pedidos: vPedidos, cuentas: vCuentas, catalogo: vCatalogo, negocio: vNegocio, prensa: vPrensa, web: vWeb, ajustes: vAjustes }[view.route] || vInicio;
   const y = window.scrollY;
   try {
     $("#view").innerHTML = fn();
@@ -645,7 +647,7 @@ function vAjustes() {
     <div class="filters">Tamaño: <button type="button" data-caltam="grande" aria-pressed="${a.calTam !== "pequeño"}">Grande, con el texto</button><button type="button" data-caltam="pequeño" aria-pressed="${a.calTam === "pequeño"}">Pequeño, con puntos</button></div></div>
   <div class="card"><h3>Tus datos</h3>
     <p class="hint" style="margin:0">Todo se guarda en este navegador. Descarga una copia de vez en cuando y guárdala en tu ordenador o en Drive.</p>
-    <div class="filters"><button type="button" id="ajCopia">Copia de seguridad</button><button type="button" id="ajNovelia">Traer de Novelia Studio</button><button type="button" id="ajReset">Empezar en blanco</button></div></div>`;
+    <div class="filters"><button type="button" id="ajCopia">Copia de seguridad</button><button type="button" id="ajNovelia">Traer de Novelia Studio</button><button type="button" id="ajCentro">Traer del Centro de control</button><button type="button" id="ajReset">Empezar en blanco</button></div></div>`;
 }
 function leerFoto(file) {
   return new Promise((res, rej) => {
@@ -1172,7 +1174,7 @@ function vCuentas() {
     <div class="tiles" id="costTiles">${costTiles(cs)}</div>
     <div class="fgrid">${field("Ejemplares impresos", pf("unidades"), p.unidades, "number")}${field("Precio de venta (PVP)", pf("pvp"), p.pvp, "number")}</div>
     ${tableHTML("costes", "p", p.costes, { addLabel: "Añadir gasto" })}</div>
-  <div class="card"><div class="ch"><h3 style="text-transform:capitalize">Ventas de ${mesLabel(ym)}</h3><span class="hint">Copia las cifras del informe de regalías de KDP</span></div>
+  <div class="card"><div class="ch"><h3 style="text-transform:capitalize">Ventas de ${mesLabel(ym)}</h3><span class="hint">Si importas el informe de KDP en <a href="#negocio" data-nsub="amazon">Negocio</a>, ya se suma aquí solo</span></div>
     <div class="tiles" id="ventTiles">${ventTiles(vm)}</div>
     ${tableHTML("ventas", "g", rows, { preset: { mes: ym, libro: p.titulo, concepto: "Digital" }, addLabel: "Añadir línea", empty: "Sin ventas apuntadas este mes." })}</div>
   <div class="card chart"><div class="ch"><h3>Resultado neto de ${ym.slice(0, 4)}</h3><span class="hint" id="anualTot"></span></div><div id="chart"></div></div>`;
@@ -1228,6 +1230,412 @@ function vPrensa() {
   <div class="card"><h3>Colaboraciones</h3>${tableHTML("colabs", "g", S.colabs, { addLabel: "Añadir colaboración", preset: { resultado: "Pendiente", red: "Instagram", motivo: "Lanzamiento" } })}</div>`;
 }
 
+/* ---------- Negocio de autora: catálogo, ventas de Amazon, ingresos, gastos, impuestos ---------- */
+const NEG_LISTAS = ["catalogo", "kdpVentas", "ingresos", "gastosNeg", "directa", "redesMes", "derechos", "resenas", "eventos", "objetivos"];
+const MONEDAS = { EUR: 1, USD: 0.8662, GBP: 1.1715, CAD: 0.622, AUD: 0.57, MXN: 0.047, BRL: 0.16, JPY: 0.0054, INR: 0.0101 };
+function negocio() {
+  if (!S.negocio || typeof S.negocio !== "object") S.negocio = {};
+  const n = S.negocio;
+  const def = { objetivoAnual: "", irpfPct: 15, pagoFracPct: 20, kenpTarifa: 0.0042, nif: "", actividad: "Autora: venta de libros y derechos de autor", cambio: {} };
+  Object.keys(def).forEach(k => { if (n[k] === undefined || n[k] === null) n[k] = def[k]; });
+  if (!n.cambio || typeof n.cambio !== "object") n.cambio = {};
+  Object.keys(MONEDAS).forEach(k => { if (n.cambio[k] === undefined || n.cambio[k] === "") n.cambio[k] = MONEDAS[k]; });
+  return n;
+}
+const ESTADOS_LIBRO = ["Activo", "Próximo", "En escritura", "Pausado", "Descatalogado"];
+const FORMATOS_KDP = ["Ebook", "Tapa blanda", "Tapa dura", "KENP"];
+
+Object.assign(COLS, {
+  catalogo: [
+    { k: "titulo", t: "Título", w: 210 },
+    { k: "serie", t: "Serie y nº", w: 160 },
+    { k: "genero", t: "Género", w: 150 },
+    { k: "estado", t: "Estado", type: "pill", opts: ESTADOS_LIBRO },
+    { k: "fecha", t: "Publicado", type: "date", w: 140 },
+    { k: "asin", t: "ASIN ebook", w: 120 },
+    { k: "isbn", t: "ISBN papel", w: 140 },
+    { k: "enlace", t: "Enlace", w: 170 },
+    { k: "notas", t: "Notas", w: 180 }
+  ],
+  ingresos: [
+    { k: "fecha", t: "Fecha", type: "date", w: 140 },
+    { k: "concepto", t: "Concepto", w: 190 },
+    { k: "linea", t: "Línea", type: "select", opts: ["Club de lectura", "Charlas", "Talleres", "Editorial", "Derechos", "Colaboración", "Otro"] },
+    { k: "cliente", t: "Cliente / entidad", w: 170 },
+    { k: "bruto", t: "Base (€)", type: "money", w: 100 },
+    { k: "iva", t: "IVA (€)", type: "money", w: 90 },
+    { k: "irpf", t: "IRPF retenido (€)", type: "money", w: 100 },
+    { k: "_neto", t: "Cobras", calc: r => num(r.bruto) + num(r.iva) - num(r.irpf), money: true },
+    { k: "estado", t: "Cobro", type: "pill", opts: ["Pendiente", "Cobrado", "Parcial"] },
+    { k: "factura", t: "Factura nº", w: 90 },
+    { k: "notas", t: "Notas", w: 160 }
+  ],
+  gastosNeg: [
+    { k: "fecha", t: "Fecha", type: "date", w: 140 },
+    { k: "concepto", t: "Concepto", w: 200 },
+    { k: "categoria", t: "Categoría", type: "select", opts: ["Corrección", "Diseño y portadas", "Impresión", "Publicidad", "Suscripciones", "Material", "Envíos", "Formación", "Gestoría", "Viajes y eventos", "Otros"] },
+    { k: "proveedor", t: "Proveedor", w: 140 },
+    { k: "libro", t: "Libro", w: 150 },
+    { k: "base", t: "Base (€)", type: "money", w: 100 },
+    { k: "iva", t: "IVA (€)", type: "money", w: 90 },
+    { k: "_total", t: "Total", calc: r => num(r.base) + num(r.iva), money: true },
+    { k: "pagado", t: "Pagado", type: "pill", opts: ["Sí", "No"] },
+    { k: "deducible", t: "Deducible", type: "pill", opts: ["Sí", "No"] },
+    { k: "notas", t: "Notas", w: 160 }
+  ],
+  directa: [
+    { k: "fecha", t: "Fecha", type: "date", w: 140 },
+    { k: "cliente", t: "Cliente", w: 170 },
+    { k: "libro", t: "Libro", w: 170 },
+    { k: "formato", t: "Formato", type: "select", opts: ["Edición especial", "Tapa blanda", "Tapa dura", "Firma / evento", "Otro"] },
+    { k: "uds", t: "Uds.", type: "number", w: 70 },
+    { k: "pvp", t: "PVP ud.", type: "money", w: 90 },
+    { k: "_ing", t: "Ingreso", calc: r => num(r.uds) * num(r.pvp) + num(r.envioCobrado), money: true },
+    { k: "costeUd", t: "Coste ud.", type: "money", w: 90 },
+    { k: "envioCobrado", t: "Envío cobrado", type: "money", w: 90 },
+    { k: "costeEnvio", t: "Coste envío", type: "money", w: 90 },
+    { k: "otros", t: "Regalos / extras", type: "money", w: 90 },
+    { k: "_benef", t: "Beneficio", calc: r => benefDirecta(r), money: true },
+    { k: "estado", t: "Estado", type: "pill", opts: ["Pendiente", "Pagado", "Enviado", "Recibido", "Incidencia"] }
+  ],
+  redesMes: [
+    { k: "mes", t: "Mes", type: "month", w: 140 },
+    { k: "instagram", t: "Instagram", type: "number", w: 100 },
+    { k: "tiktok", t: "TikTok", type: "number", w: 100 },
+    { k: "youtube", t: "YouTube", type: "number", w: 100 },
+    { k: "newsletter", t: "Newsletter", type: "number", w: 100 },
+    { k: "notas", t: "Qué pasó ese mes", w: 220 }
+  ],
+  derechos: [
+    { k: "libro", t: "Libro", w: 170 },
+    { k: "tipo", t: "Derecho", type: "select", opts: ["Traducción", "Audiolibro", "Papel (editorial)", "Adaptación audiovisual", "Otro"] },
+    { k: "territorio", t: "Idioma / territorio", w: 140 },
+    { k: "editorial", t: "Editorial / plataforma", w: 170 },
+    { k: "firma", t: "Firma", type: "date", w: 140 },
+    { k: "fin", t: "Fin de la cesión", type: "date", w: 140 },
+    { k: "estado", t: "Estado", type: "pill", opts: ["Negociando", "Firmado", "En producción", "Publicado", "Vencido"] },
+    { k: "anticipo", t: "Anticipo (€)", type: "money", w: 100 },
+    { k: "cobrado", t: "¿Anticipo cobrado?", type: "pill", opts: ["No", "Sí"] },
+    { k: "regalias", t: "Regalías cobradas (€)", type: "money", w: 110 },
+    { k: "_total", t: "Total ingresado", calc: r => (r.cobrado === "Sí" ? num(r.anticipo) : 0) + num(r.regalias), money: true },
+    { k: "notas", t: "Dónde está el contrato", w: 180 }
+  ],
+  resenas: [
+    { k: "libro", t: "Libro", w: 190 },
+    { k: "fecha", t: "Fecha", type: "date", w: 140 },
+    { k: "plataforma", t: "Plataforma", type: "select", opts: ["Amazon.es", "Amazon.com", "Goodreads", "Otra"] },
+    { k: "nota", t: "Nota media", type: "number", w: 80 },
+    { k: "num", t: "Nº reseñas", type: "number", w: 90 },
+    { k: "objetivo", t: "Objetivo", type: "number", w: 90 },
+    { k: "_falta", t: "Faltan", calc: r => num(r.objetivo) ? Math.max(0, num(r.objetivo) - num(r.num)) : "" },
+    { k: "notas", t: "Notas", w: 180 }
+  ],
+  eventos: [
+    { k: "nombre", t: "Evento", w: 190 },
+    { k: "tipo", t: "Tipo", type: "select", opts: ["Feria", "Firma", "Presentación", "Charla", "Mercado", "Club de lectura", "Otro"] },
+    { k: "lugar", t: "Lugar", w: 140 },
+    { k: "fecha", t: "Fecha", type: "date", w: 140 },
+    { k: "tarifa", t: "Te pagan (€)", type: "money", w: 100 },
+    { k: "costes", t: "Costes (€)", type: "money", w: 100 },
+    { k: "libros", t: "Libros vendidos", type: "number", w: 90 },
+    { k: "ventas", t: "Ventas (€)", type: "money", w: 100 },
+    { k: "_benef", t: "Beneficio", calc: r => num(r.tarifa) + num(r.ventas) - num(r.costes), money: true },
+    { k: "valoracion", t: "¿Repetir?", type: "pill", opts: ["Sin valorar", "Sí", "Quizá", "No"] },
+    { k: "notas", t: "Notas", w: 180 }
+  ],
+  objetivos: [
+    { k: "area", t: "Objetivo", w: 230 },
+    { k: "meta", t: "Meta del año", type: "number", w: 110 },
+    { k: "actual", t: "Llevas", type: "number", w: 110 },
+    { k: "_pct", t: "%", calc: r => num(r.meta) ? Math.round(num(r.actual) / num(r.meta) * 100) + "%" : "" },
+    { k: "_est", t: "Cómo va", calc: r => !num(r.meta) ? "" : num(r.actual) >= num(r.meta) ? "Cumplido" : num(r.actual) / num(r.meta) >= 0.75 ? "En curso" : "Lejos", pillCalc: true },
+    { k: "notas", t: "Notas", w: 200 }
+  ]
+});
+TONES["Cumplido"] = "ok"; TONES["Lejos"] = "bad"; TONES["Cobrado"] = "ok"; TONES["Sí"] = "ok";
+TONES["Activo"] = "ok"; TONES["Descatalogado"] = "neu"; TONES["Próximo"] = "mid"; TONES["Firmado"] = "ok"; TONES["Negociando"] = "warm"; TONES["En escritura"] = "mid"; TONES["Parcial"] = "mid"; TONES["Quizá"] = "warm"; TONES["En producción"] = "mid"; TONES["Vencido"] = "bad";
+
+function benefDirecta(r) { return num(r.uds) * num(r.pvp) + num(r.envioCobrado) - num(r.uds) * num(r.costeUd) - num(r.costeEnvio) - num(r.otros); }
+
+/* Ventas de Amazon (importadas del informe de KDP) */
+function eurKdp(l) {
+  const n = negocio();
+  if (l.formato === "KENP") return num(l.uds) * num(n.kenpTarifa);
+  if (l.eur !== undefined && l.eur !== "") return num(l.eur);
+  const c = l.moneda && l.moneda !== "EUR" ? num(n.cambio[l.moneda] ?? MONEDAS[l.moneda] ?? 1) : 1;
+  return num(l.regalias) * c;
+}
+function kdpMes(ym) {
+  const r = { ebook: 0, papel: 0, kenpEur: 0, kenp: 0, uds: 0, total: 0 };
+  (S.kdpVentas || []).forEach(l => {
+    if (l.mes !== ym) return;
+    const e = eurKdp(l);
+    if (l.formato === "KENP") { r.kenpEur += e; r.kenp += num(l.uds); }
+    else { if (l.formato === "Ebook") r.ebook += e; else r.papel += e; r.uds += num(l.uds); }
+    r.total += e;
+  });
+  return r;
+}
+const enRango = (f, a, b) => f && f >= a && f <= b;
+function mesesDe(desde, hasta) { const out = []; let m = desde; while (m <= hasta) { out.push(m); m = addMonth(m, 1); } return out; }
+function cifras(desde, hasta) {
+  // desde/hasta: "AAAA-MM"; fechas de ingresos y gastos se comparan por día
+  const d0 = desde + "-01", d1 = hasta + "-31";
+  const r = { kdp: 0, kdpManual: 0, otros: 0, iva: 0, irpf: 0, directa: 0, directaBenef: 0, eventos: 0, gastos: 0, gastosDed: 0, ivaSop: 0, porCobrar: 0, porPagar: 0 };
+  mesesDe(desde, hasta).forEach(m => {
+    r.kdp += kdpMes(m).total;
+    S.ventas.filter(v => v.mes === m).forEach(v => { if (GASTOS.includes(v.concepto)) { r.gastos += num(v.importe); r.gastosDed += num(v.importe); } else r.kdpManual += num(v.importe); });
+  });
+  S.ingresos.forEach(i => { if (!enRango(i.fecha, d0, d1)) return; r.otros += num(i.bruto); r.iva += num(i.iva); r.irpf += num(i.irpf); if (i.estado !== "Cobrado") r.porCobrar += num(i.bruto) + num(i.iva) - num(i.irpf); });
+  S.directa.forEach(x => { if (!enRango(x.fecha, d0, d1)) return; r.directa += num(x.uds) * num(x.pvp) + num(x.envioCobrado); r.directaBenef += benefDirecta(x); r.gastos += num(x.uds) * num(x.costeUd) + num(x.costeEnvio) + num(x.otros); r.gastosDed += num(x.uds) * num(x.costeUd) + num(x.costeEnvio) + num(x.otros); });
+  S.eventos.forEach(e => { if (!enRango(e.fecha, d0, d1)) return; r.eventos += num(e.tarifa) + num(e.ventas); r.gastos += num(e.costes); r.gastosDed += num(e.costes); });
+  S.gastosNeg.forEach(g => { if (!enRango(g.fecha, d0, d1)) return; r.gastos += num(g.base); if (g.deducible !== "No") { r.gastosDed += num(g.base); r.ivaSop += num(g.iva); } if (g.pagado === "No") r.porPagar += num(g.base) + num(g.iva); });
+  r.ingresos = r.kdp + r.kdpManual + r.otros + r.directa + r.eventos;
+  r.neto = r.ingresos - r.gastos;
+  r.rendimiento = r.ingresos - r.gastosDed;
+  return r;
+}
+
+/* Agrupa las ventas de Amazon por libro del catálogo */
+const normT = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+function libroDe(l) {
+  const asin = String(l.asin || "").trim().toUpperCase();
+  const cat = S.catalogo;
+  let b = asin && cat.find(c => [c.asin, c.isbn].some(x => String(x || "").replace(/[-\s]/g, "").toUpperCase() === asin.replace(/[-\s]/g, "")));
+  if (!b) { const t = normT(l.titulo); b = cat.filter(c => normT(c.titulo)).sort((a, z) => normT(z.titulo).length - normT(a.titulo).length).find(c => t.startsWith(normT(c.titulo))); }
+  return b ? b.titulo : String(l.titulo || "Sin título").split(/[:(]/)[0].trim();
+}
+function porLibro(year) {
+  const m = {};
+  (S.kdpVentas || []).forEach(l => {
+    if (!String(l.mes).startsWith(year)) return;
+    const k = libroDe(l), e = eurKdp(l);
+    const o = m[k] || (m[k] = { libro: k, ebook: 0, papel: 0, kenp: 0, kenpEur: 0, uds: 0, total: 0, meses: {} });
+    if (l.formato === "KENP") { o.kenp += num(l.uds); o.kenpEur += e; } else { o[l.formato === "Ebook" ? "ebook" : "papel"] += e; o.uds += num(l.uds); }
+    o.total += e; o.meses[l.mes] = (o.meses[l.mes] || 0) + e;
+  });
+  return Object.values(m).sort((a, b) => b.total - a.total);
+}
+
+/* ---- Vista: Catálogo ---- */
+function vCatalogo() {
+  const y = view.mes.slice(0, 4), libros = porLibro(y);
+  const act = S.catalogo.filter(c => c.estado === "Activo").length;
+  const tot = libros.reduce((s, o) => s + o.total, 0);
+  const top = libros[0];
+  const yPrev = String(+y - 1), mesAct = monthOf(TODAY);
+  const fila = o => {
+    const ult = mesAct.startsWith(y) ? (o.meses[mesAct] || 0) : 0, ant = mesAct.startsWith(y) ? (o.meses[addMonth(mesAct, -1)] || 0) : 0;
+    return `<tr><td>${esc(o.libro)}</td><td class="calc">${eur(o.ebook)}</td><td class="calc">${eur(o.papel)}</td><td class="calc">${fmt(o.kenp)}</td><td class="calc">${eur(o.kenpEur)}</td><td class="calc"><b>${eur(o.total)}</b></td><td class="calc">${fmt(o.uds)}</td></tr>`;
+  };
+  return `
+  <div class="head"><div><div class="eyebrow">Tu catálogo</div><h1>Todos tus libros</h1>
+    <p>Los libros publicados y los que vienen, con su ASIN e ISBN. Abajo, lo que te ha dejado cada uno en Amazon el año que eliges con las flechas de arriba.</p></div></div>
+  <div class="tiles">${tile("Libros", S.catalogo.length, act + " activos", "")}${tile("Amazon en " + y, eur(tot), "ebook + papel + KENP", tot ? "ok" : "")}
+    ${tile("El que más te deja", top ? esc(top.libro) : "—", top ? eur(top.total) + " en " + y : "importa tus ventas", "lav")}</div>
+  <div class="card"><div class="ch"><h3>Catálogo</h3><span class="hint">El ASIN y el ISBN sirven para reconocer cada libro en los informes de Amazon</span></div>
+    ${tableHTML("catalogo", "g", S.catalogo, { addLabel: "Añadir libro", empty: "Apunta aquí todos tus libros, también los descatalogados.", preset: { estado: "Activo" } })}</div>
+  <div class="card"><div class="ch"><h3>Regalías de Amazon por libro en ${y}</h3><a class="hint" href="#negocio" data-nsub="amazon">Importar ventas de Amazon</a></div>
+    ${libros.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Libro</th><th>Ebook</th><th>Papel</th><th>Páginas KENP</th><th>KENP (estimado)</th><th>Total</th><th>Ejemplares</th></tr></thead><tbody>${libros.map(fila).join("")}</tbody>
+    <tfoot><tr><td><b>Total</b></td><td class="calc">${eur(libros.reduce((s, o) => s + o.ebook, 0))}</td><td class="calc">${eur(libros.reduce((s, o) => s + o.papel, 0))}</td><td class="calc">${fmt(libros.reduce((s, o) => s + o.kenp, 0))}</td><td class="calc">${eur(libros.reduce((s, o) => s + o.kenpEur, 0))}</td><td class="calc"><b>${eur(tot)}</b></td><td class="calc">${fmt(libros.reduce((s, o) => s + o.uds, 0))}</td></tr></tfoot></table></div>`
+      : `<p class="empty">No hay ventas de Amazon importadas de ${y}. ${(S.kdpVentas || []).some(l => String(l.mes).startsWith(yPrev)) ? "Prueba con " + yPrev + "." : ""}</p>`}</div>
+  <div class="card"><div class="ch"><h3>Reseñas</h3><span class="hint">Apunta de vez en cuando cuántas tiene cada libro</span></div>
+    ${tableHTML("resenas", "g", S.resenas, { addLabel: "Añadir recuento", preset: { fecha: TODAY, plataforma: "Amazon.es" } })}</div>`;
+}
+
+/* ---- Vista: Negocio ---- */
+const NSUBS = [["resumen", "Resumen del año"], ["amazon", "Ventas de Amazon"], ["ingresos", "Otros ingresos"], ["gastos", "Gastos"], ["directa", "Venta directa"], ["impuestos", "Impuestos"], ["objetivos", "Objetivos y redes"], ["derechos", "Derechos y eventos"]];
+function vNegocio() {
+  const sub = NSUBS.some(s => s[0] === view.nsub) ? view.nsub : "resumen";
+  const tabs = `<div class="filters">${NSUBS.map(([k, t]) => `<button type="button" data-nsub="${k}" aria-pressed="${sub === k}">${t}</button>`).join("")}</div>`;
+  const body = { resumen: nResumen, amazon: nAmazon, ingresos: nIngresos, gastos: nGastos, directa: nDirecta, impuestos: nImpuestos, objetivos: nObjetivos, derechos: nDerechos }[sub]();
+  return `<div class="head"><div><div class="eyebrow">Negocio de autora</div><h1>Tu negocio</h1>
+    <p>Todo el dinero de tu escritura: Amazon, otros ingresos, venta directa, gastos e impuestos. Cambia de año o de trimestre con las flechas de arriba.</p></div></div>${tabs}${body}`;
+}
+function nResumen() {
+  const n = negocio(), y = view.mes.slice(0, 4), c = cifras(y + "-01", y + "-12");
+  const obj = num(n.objetivoAnual), pct = obj ? Math.round(c.ingresos / obj * 100) : 0;
+  const meses = Array.from({ length: 12 }, (_, i) => { const m = y + "-" + pad(i + 1); return { m, c: cifras(m, m) }; });
+  return `
+  <div class="tiles">${tile("Ingresos " + y, eur(c.ingresos), "todo lo que entra", "ok")}${tile("Gastos", eur(c.gastos), "de todas las secciones", c.gastos ? "warn" : "")}
+    ${tile("Beneficio", eur(c.neto), "ingresos − gastos", c.neto < 0 ? "bad" : "ok")}${tile("Por cobrar", eur(c.porCobrar), "otros ingresos sin cobrar", c.porCobrar ? "warn" : "")}
+    ${tile("Por pagar", eur(c.porPagar), "gastos sin pagar", c.porPagar ? "warn" : "")}</div>
+  <div class="card"><div class="ch"><h3>Objetivo de ingresos de ${y}</h3><label class="field" style="flex-direction:row;align-items:center;gap:8px"><span>Objetivo (€)</span><input type="number" data-s="g" data-path="negocio.objetivoAnual" value="${esc(n.objetivoAnual)}" style="width:120px"></label></div>
+    ${obj ? `${bar(pct, pct >= 100 ? "ok" : "")}<p class="hint" style="margin:6px 0 0">${eur(c.ingresos)} de ${eur(obj)} · ${pct}%</p>` : `<p class="hint" style="margin:0">Pon una cifra y verás cuánto te falta.</p>`}</div>
+  <div class="card"><h3>Mes a mes</h3><div class="tblwrap"><table class="tbl"><thead><tr><th>Mes</th><th>Amazon</th><th>Otros ingresos</th><th>Venta directa y eventos</th><th>Gastos</th><th>Beneficio</th></tr></thead><tbody>
+    ${meses.map(({ m, c: k }) => `<tr><td style="text-transform:capitalize">${MESES[+m.slice(5) - 1]}</td><td class="calc">${eur(k.kdp + k.kdpManual)}</td><td class="calc">${eur(k.otros)}</td><td class="calc">${eur(k.directa + k.eventos)}</td><td class="calc">${eur(k.gastos)}</td><td class="calc ${k.neto < 0 ? "neg" : ""}"><b>${eur(k.neto)}</b></td></tr>`).join("")}</tbody>
+    <tfoot><tr><td><b>Total</b></td><td class="calc">${eur(c.kdp + c.kdpManual)}</td><td class="calc">${eur(c.otros)}</td><td class="calc">${eur(c.directa + c.eventos)}</td><td class="calc">${eur(c.gastos)}</td><td class="calc"><b>${eur(c.neto)}</b></td></tr></tfoot></table></div>
+    <p class="hint" style="margin:8px 0 0">Amazon suma lo importado del informe de KDP y las líneas que apuntas a mano en Cuentas. Las páginas KENP son una estimación (${String(n.kenpTarifa).replace(".", ",")} € por página).</p></div>`;
+}
+function nAmazon() {
+  const n = negocio(), ym = view.mes, km = kdpMes(ym);
+  const rows = (S.kdpVentas || []).filter(l => l.mes === ym).sort((a, b) => eurKdp(b) - eurKdp(a));
+  const meses = [...new Set((S.kdpVentas || []).map(l => l.mes))].sort();
+  return `
+  <div class="tiles">${tile("Ebook", eur(km.ebook), "", "ok")}${tile("Papel", eur(km.papel), "", "")}${tile("KENP", fmt(km.kenp) + " págs.", eur(km.kenpEur) + " estimado", "lav")}${tile("Total del mes", eur(km.total), fmt(km.uds) + " ejemplares", km.total ? "ok" : "")}</div>
+  <div class="card"><div class="ch"><h3>Importar el informe de Amazon KDP</h3></div>
+    <ol class="hint" style="margin:0 0 8px;padding-left:18px"><li>En KDP, entra en <b>Informes › Regalías previas</b> (o en el panel) y descarga el Excel del mes.</li>
+      <li>Abre el Excel, selecciona la tabla <b>con la fila de títulos</b> (Fecha, Título, ASIN, Regalías…) y cópiala.</li>
+      <li>Pégala aquí. Sirven las hojas de ventas (ebook y papel) y la de páginas KENP leídas.</li></ol>
+    <textarea id="kdpPaste" style="width:100%;min-height:120px;font-family:monospace;font-size:.78rem" placeholder="Pega aquí las filas copiadas del Excel de KDP"></textarea>
+    <div class="filters" style="margin-top:8px"><button type="button" id="kdpImport">Importar</button><span class="hint" id="kdpMsg"></span></div></div>
+  <div class="card"><div class="ch"><h3 style="text-transform:capitalize">Líneas de ${mesLabel(ym)}</h3><span class="hint">${rows.length} líneas · ${meses.length ? "hay datos de " + mesLabel(meses[0]) + " a " + mesLabel(meses[meses.length - 1]) : "sin datos todavía"}</span></div>
+    ${rows.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Libro</th><th>Tienda</th><th>Formato</th><th>Uds. / págs.</th><th>Regalías</th><th>En euros</th><th></th></tr></thead><tbody>
+      ${rows.map(l => `<tr><td>${esc(libroDe(l))}</td><td>${esc(l.tienda || "")}</td><td>${esc(l.formato)}</td><td class="calc">${fmt(l.uds)}</td><td class="calc">${l.formato === "KENP" ? "—" : esc(String(num(l.regalias).toFixed(2)).replace(".", ",") + " " + (l.moneda || "EUR"))}</td><td class="calc">${eur(eurKdp(l))}</td><td><button class="del" type="button" data-del="${l.id}" data-s="g" data-l="kdpVentas" aria-label="Eliminar línea">×</button></td></tr>`).join("")}</tbody></table></div>`
+      : `<p class="empty">No hay ventas importadas de este mes.</p>`}
+    ${rows.length ? `<div class="filters"><button type="button" id="kdpBorrarMes">Borrar las líneas de este mes</button></div>` : ""}</div>
+  <div class="card"><h3>Cambio de moneda y KENP</h3>
+    <p class="hint" style="margin:0 0 8px">Las regalías en otras monedas se pasan a euros con estos cambios. Actualízalos de vez en cuando (1 unidad de la moneda = X €).</p>
+    <div class="fgrid">${Object.keys(MONEDAS).filter(k => k !== "EUR").map(k => field(k, `data-s="g" data-path="negocio.cambio.${k}"`, n.cambio[k], "number")).join("")}
+      ${field("Euros por página KENP", `data-s="g" data-path="negocio.kenpTarifa"`, n.kenpTarifa, "number")}</div></div>`;
+}
+function nIngresos() {
+  const y = view.mes.slice(0, 4), c = cifras(y + "-01", y + "-12");
+  const rows = S.ingresos.filter(i => !i.fecha || i.fecha.startsWith(y)).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+  return `<div class="tiles">${tile("Otros ingresos " + y, eur(c.otros), "base, sin IVA", "ok")}${tile("IRPF que te han retenido", eur(c.irpf), "lo descuentas en la Renta", "lav")}${tile("Por cobrar", eur(c.porCobrar), "", c.porCobrar ? "warn" : "")}</div>
+  <div class="card"><div class="ch"><h3>Facturas y cobros de ${y}</h3><span class="hint">Club de lectura, charlas, talleres, editoriales…</span></div>
+    ${tableHTML("ingresos", "g", rows, { addLabel: "Añadir ingreso", preset: { fecha: TODAY, linea: "Club de lectura", estado: "Pendiente", irpf: "", iva: 0 }, empty: "Sin ingresos apuntados este año." })}
+    <p class="hint" style="margin:8px 0 0">El IRPF retenido se calcula solo si pones la base: al escribirla se rellena con el ${esc(negocio().irpfPct)} %. Puedes cambiarlo a mano.</p></div>`;
+}
+function nGastos() {
+  const y = view.mes.slice(0, 4), c = cifras(y + "-01", y + "-12");
+  const rows = S.gastosNeg.filter(g => !g.fecha || g.fecha.startsWith(y)).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+  const porCat = {}; rows.forEach(g => { porCat[g.categoria || "Otros"] = (porCat[g.categoria || "Otros"] || 0) + num(g.base); });
+  return `<div class="tiles">${tile("Gastos generales " + y, eur(rows.reduce((s, g) => s + num(g.base), 0)), "base, sin IVA", "warn")}${tile("IVA soportado", eur(c.ivaSop), "gastos deducibles", "lav")}${tile("Por pagar", eur(c.porPagar), "", c.porPagar ? "warn" : "")}</div>
+  <div class="card"><div class="ch"><h3>Gastos del negocio en ${y}</h3><span class="hint">Los costes de un libro concreto (correctora, portada…) también puedes llevarlos en Cuentas</span></div>
+    ${tableHTML("gastosNeg", "g", rows, { addLabel: "Añadir gasto", preset: { fecha: TODAY, categoria: "Suscripciones", pagado: "Sí", deducible: "Sí", iva: "" }, empty: "Sin gastos apuntados este año." })}
+    ${Object.keys(porCat).length ? `<p class="hint" style="margin:8px 0 0">Por categoría: ${Object.entries(porCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => esc(k) + " " + eur(v)).join(" · ")}</p>` : ""}</div>`;
+}
+function nDirecta() {
+  const y = view.mes.slice(0, 4);
+  const rows = S.directa.filter(x => !x.fecha || x.fecha.startsWith(y));
+  const all = view.dirTodo ? S.directa : rows;
+  const ing = all.reduce((s, x) => s + num(x.uds) * num(x.pvp) + num(x.envioCobrado), 0), ben = all.reduce((s, x) => s + benefDirecta(x), 0), uds = all.reduce((s, x) => s + num(x.uds), 0);
+  return `<div class="tiles">${tile("Ejemplares", fmt(uds), "", "")}${tile("Ingresos", eur(ing), "", "ok")}${tile("Beneficio", eur(ben), "después de libro, envío y regalos", ben < 0 ? "bad" : "ok")}${tile("Pendientes", all.filter(x => x.estado === "Pendiente").length, "pedidos", "warn")}</div>
+  <div class="card"><div class="ch"><h3>Ventas que haces tú</h3><div class="filters" style="margin:0"><button type="button" data-dirtodo="0" aria-pressed="${!view.dirTodo}">Solo ${y}</button><button type="button" data-dirtodo="1" aria-pressed="${!!view.dirTodo}">Todas</button></div></div>
+    <p class="hint" style="margin:0 0 8px">Ediciones especiales, ventas en firmas y pedidos de cualquier libro del catálogo. La preventa de la novela que estás lanzando sigue en Pedidos.</p>
+    ${S.directa.some(x => !x.fecha) ? `<p class="hint" style="margin:0 0 8px;color:var(--aviso)">Hay ${S.directa.filter(x => !x.fecha).length} ventas sin fecha: salen aquí, pero no cuentan en el resumen del año ni en los impuestos hasta que les pongas la fecha.</p>` : ""}
+    ${tableHTML("directa", "g", all, { addLabel: "Añadir venta", preset: { fecha: TODAY, uds: 1, formato: "Edición especial", estado: "Pendiente" }, empty: "Sin ventas directas." })}</div>`;
+}
+function trimestre(ym) { const y = ym.slice(0, 4), q = Math.floor((+ym.slice(5) - 1) / 3); return { y, q: q + 1, desde: y + "-" + pad(q * 3 + 1), hasta: y + "-" + pad(q * 3 + 3) }; }
+function nImpuestos() {
+  const n = negocio(), t = trimestre(view.mes), c = cifras(t.desde, t.hasta), ac = cifras(t.y + "-01", t.hasta);
+  const iva = c.iva - c.ivaSop;
+  const frac = Math.max(0, ac.rendimiento * num(n.pagoFracPct) / 100 - ac.irpf);
+  const plazo = ["1-20 de abril", "1-20 de julio", "1-20 de octubre", "1-30 de enero"][t.q - 1];
+  const texto = resumenGestoria(t, c, ac, iva, frac);
+  return `<div class="card"><div class="ch"><h3>Trimestre ${t.q} de ${t.y}</h3><span class="hint">Cambia de trimestre con las flechas de arriba · se presenta del ${plazo}</span></div>
+    <div class="tiles">${tile("Ingresos del trimestre", eur(c.ingresos), "Amazon " + eur(c.kdp + c.kdpManual) + " · otros " + eur(c.otros + c.directa + c.eventos), "ok")}
+      ${tile("Gastos deducibles", eur(c.gastosDed), "", "warn")}${tile("Rendimiento neto", eur(c.rendimiento), "ingresos − gastos deducibles", c.rendimiento < 0 ? "bad" : "")}
+      ${tile("IVA (303)", eur(iva), eur(c.iva) + " repercutido − " + eur(c.ivaSop) + " soportado", iva > 0 ? "warn" : "")}
+      ${tile("Pago fraccionado estimado", eur(frac), n.pagoFracPct + " % del rendimiento del año − retenciones", "lav")}</div>
+    <p class="hint" style="margin:8px 0 0">Es una estimación para que no te pille por sorpresa. Las regalías de Amazon no llevan IVA español. Si tributas en una Hacienda foral (Álava, Bizkaia, Gipuzkoa o Navarra), los modelos, plazos y porcentajes pueden cambiar: confírmalo con tu gestoría.</p></div>
+  <div class="card"><div class="ch"><h3>Resumen para la gestoría</h3><button class="btn ghost sm" type="button" id="gestCopiar">Copiar</button></div>
+    <div class="fgrid">${field("Nombre", `data-s="g" data-path="perfil.nombre"`, perfil().nombre)}${field("NIF", `data-s="g" data-path="negocio.nif"`, n.nif)}${field("Actividad", `data-s="g" data-path="negocio.actividad"`, n.actividad)}</div>
+    <pre class="gest" id="gestTxt" style="white-space:pre-wrap;background:var(--nube);border-radius:8px;padding:12px;font-size:.82rem;margin:10px 0 0">${esc(texto)}</pre></div>
+  <div class="card"><h3>Porcentajes</h3><div class="fgrid">${field("IRPF que te retienen en las facturas (%)", `data-s="g" data-path="negocio.irpfPct"`, n.irpfPct, "number")}${field("Pago fraccionado (%)", `data-s="g" data-path="negocio.pagoFracPct"`, n.pagoFracPct, "number")}</div></div>`;
+}
+function resumenGestoria(t, c, ac, iva, frac) {
+  const n = negocio(), L = (a, b) => (a + ":").padEnd(42, " ") + b;
+  return [`${perfil().nombre || "Autora"}${n.nif ? " · NIF " + n.nif : ""}`, n.actividad, `Trimestre ${t.q} de ${t.y}`, "",
+    L("Regalías de Amazon (KDP + KENP)", eur(c.kdp + c.kdpManual)), L("Otros ingresos (base)", eur(c.otros)), L("Venta directa y eventos", eur(c.directa + c.eventos)),
+    L("Total ingresos", eur(c.ingresos)), L("Gastos deducibles (base)", eur(c.gastosDed)), L("Rendimiento neto del trimestre", eur(c.rendimiento)), "",
+    L("IVA repercutido", eur(c.iva)), L("IVA soportado deducible", eur(c.ivaSop)), L("IVA resultante (303)", eur(iva)), "",
+    L("Rendimiento acumulado del año", eur(ac.rendimiento)), L("Retenciones de IRPF acumuladas", eur(ac.irpf)), L("Pago fraccionado estimado", eur(frac)), "",
+    "Cifras estimadas desde Kit Escritoras el " + dayLabel(TODAY) + " de " + TODAY.slice(0, 4) + "."].join("\n");
+}
+function nObjetivos() {
+  const r = [...S.redesMes].sort((a, b) => String(a.mes).localeCompare(String(b.mes)));
+  const first = r[0], last = r[r.length - 1];
+  const dif = k => first && last && first !== last && num(last[k]) && num(first[k]) ? (num(last[k]) - num(first[k]) >= 0 ? "+" : "") + fmt(num(last[k]) - num(first[k])) : "";
+  return `<div class="card"><div class="ch"><h3>Objetivos del año</h3><span class="hint">Libros publicados, reseñas, suscriptoras, ingresos…</span></div>
+    ${tableHTML("objetivos", "g", S.objetivos, { addLabel: "Añadir objetivo", empty: "Ponte dos o tres objetivos para el año." })}</div>
+  <div class="card"><div class="ch"><h3>Seguidores mes a mes</h3><span class="hint">Apunta las cifras el día 1 de cada mes</span></div>
+    ${last ? `<div class="tiles">${[["instagram", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"], ["newsletter", "Newsletter"]].map(([k, t]) => tile(t, fmt(last[k]), dif(k) ? dif(k) + " desde " + mesLabel(first.mes) : "", "")).join("")}</div>` : ""}
+    ${tableHTML("redesMes", "g", r, { addLabel: "Añadir mes", preset: { mes: monthOf(TODAY) }, empty: "Sin cifras todavía." })}</div>`;
+}
+function nDerechos() {
+  return `<div class="card"><div class="ch"><h3>Derechos cedidos</h3><span class="hint">Traducciones, audiolibros, ediciones en papel con editorial…</span></div>
+    ${tableHTML("derechos", "g", S.derechos, { addLabel: "Añadir contrato", preset: { estado: "Negociando", cobrado: "No" }, empty: "Sin contratos de derechos." })}</div>
+  <div class="card"><div class="ch"><h3>Eventos</h3><span class="hint">Ferias, firmas, presentaciones y charlas: lo que cuestan y lo que dejan</span></div>
+    ${tableHTML("eventos", "g", [...S.eventos].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))), { addLabel: "Añadir evento", preset: { tipo: "Feria", valoracion: "Sin valorar" }, empty: "Sin eventos apuntados." })}</div>`;
+}
+
+/* ---- Importar el informe de KDP pegado desde Excel ---- */
+function parseTabla(txt) {
+  const filas = String(txt || "").replace(/\r/g, "").split("\n").filter(l => l.trim());
+  return filas.map(l => l.split(l.includes("\t") ? "\t" : /;|,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c => c.replace(/^"|"$/g, "").trim()));
+}
+function numKdp(v) { let s = String(v || "").replace(/[^\d,.\-]/g, ""); if (s.includes(",") && s.includes(".")) s = s.lastIndexOf(",") > s.lastIndexOf(".") ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, ""); else s = s.replace(",", "."); return num(s); }
+function mesKdp(v) {
+  const s = String(v || "").trim();
+  let m = s.match(/^(\d{4})[-\/](\d{1,2})/); if (m) return m[1] + "-" + pad(+m[2]);
+  m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/); if (m) return m[3] + "-" + pad(+m[2]);
+  const n = num(s); if (n > 30000 && n < 80000) { const d = new Date(Date.UTC(1899, 11, 30) + n * 86400000); return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1); }
+  return "";
+}
+function importarKdp(txt) {
+  const t = parseTabla(txt);
+  const hi = t.findIndex(r => r.some(c => /t[ií]tulo|title/i.test(c)) && r.some(c => /regal|royalt|kenp|p[aá]ginas/i.test(c)));
+  if (hi < 0) return { error: "No encuentro la fila de títulos. Copia la tabla incluyendo la fila de arriba (Fecha, Título, ASIN…)." };
+  const h = t[hi].map(c => normT(c));
+  const col = (...re) => h.findIndex(c => re.some(r => r.test(c)));
+  const cF = col(/^fecha/, /^royalty date/, /^date/, /^mes/, /^period/), cT = col(/^titulo/, /^title/), cA = col(/^asin/, /isbn/),
+    cS = col(/^tienda/, /marketplace/, /^store/), cX = col(/transacc/, /transaction/, /^tipo de transacc/, /^formato/),
+    cU = col(/netas/, /net units/, /unidades netas/), cR = col(/^regalias$/, /^royalty$/, /^regalias eur/), cRe = h.findIndex(c => /regalias eur/.test(c)),
+    cM = col(/^moneda/, /^currency/), cK = col(/kenp/, /paginas.*leidas/, /pages read/);
+  if (cT < 0) return { error: "No encuentro la columna del título." };
+  const esKenp = cK >= 0 && cR < 0;
+  const out = [];
+  t.slice(hi + 1).forEach(r => {
+    const titulo = r[cT]; if (!titulo || /^total/i.test(titulo)) return;
+    const mes = cF >= 0 ? mesKdp(r[cF]) : view.mes; if (!mes) return;
+    const tx = cX >= 0 ? normT(r[cX]) : "";
+    const formato = esKenp ? "KENP" : /blanda|paperback/.test(tx) ? "Tapa blanda" : /dura|hardcover/.test(tx) ? "Tapa dura" : "Ebook";
+    const l = { id: uid(), mes, titulo, asin: cA >= 0 ? r[cA] : "", tienda: cS >= 0 ? r[cS] : "", formato,
+      uds: esKenp ? numKdp(r[cK]) : (cU >= 0 ? numKdp(r[cU]) : 0), regalias: esKenp ? "" : numKdp(r[cR]), moneda: cM >= 0 ? String(r[cM] || "EUR").toUpperCase() : "EUR" };
+    if (cRe >= 0 && r[cRe] !== "") l.eur = numKdp(r[cRe]);
+    if (!esKenp && !l.uds && !l.regalias) return;
+    if (esKenp && !l.uds) return;
+    out.push(l);
+  });
+  if (!out.length) return { error: "No he encontrado ventas debajo de la fila de títulos." };
+  return { lineas: out };
+}
+
+/* ---- Traer los datos del Excel «Centro de control» (archivo preparado) ---- */
+function cargarCentroControl(d) {
+  if (!d || d.tipo !== "centro-control-para-kit") return "Ese archivo no viene del Centro de control.";
+  const pend = [];
+  NEG_LISTAS.forEach(k => { if (Array.isArray(d[k])) pend.push([k, d[k].length]); });
+  if (!pend.length) return "El archivo no trae datos.";
+  return { pend, aplicar: () => {
+    NEG_LISTAS.forEach(k => { if (Array.isArray(d[k])) S[k] = d[k].map(x => Object.assign({ id: uid() }, x)); });
+    if (d.negocio) Object.assign(negocio(), d.negocio);
+  } };
+}
+const NOMBRES_LISTAS = { catalogo: "libros", kdpVentas: "líneas de Amazon", ingresos: "ingresos", gastosNeg: "gastos", directa: "ventas directas", redesMes: "meses de seguidores", derechos: "contratos", resenas: "recuentos de reseñas", eventos: "eventos", objetivos: "objetivos" };
+function abrirCentroControl() {
+  openModal(`<h2>Traer datos del Centro de control</h2>
+    <p style="margin:0">Elige el archivo <b>centro-control-para-kit.json</b>. Se cargan tu catálogo, las ventas de Amazon, los ingresos, gastos, venta directa, impuestos y el resto de la parte de negocio.</p>
+    <label class="btn ghost" style="display:inline-flex;align-items:center;align-self:flex-start">Elegir archivo<input type="file" id="ccFile" accept=".json,application/json" style="display:none"></label>
+    <p class="hint" id="ccMsg" style="margin:0"></p>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cerrar</button></div>`, box => {
+    $("#ccFile", box).addEventListener("change", e => {
+      const f = e.target.files && e.target.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        let d; try { d = JSON.parse(String(r.result)); } catch (er) { d = null; }
+        const res = cargarCentroControl(d), msg = $("#ccMsg", box);
+        if (typeof res === "string") { msg.textContent = res; return; }
+        msg.innerHTML = `Trae ${res.pend.map(([k, n]) => n + " " + NOMBRES_LISTAS[k]).join(", ")}. Sustituye lo que haya ahora en esas secciones. <button class="btn sm" type="button" id="ccSi">Cargar</button>`;
+        $("#ccSi", box).addEventListener("click", () => { res.aplicar(); closeModal(); save(); location.hash = "negocio"; view.nsub = "resumen"; render(); toast("Datos del Centro de control cargados"); });
+      };
+      r.readAsText(f);
+    });
+  });
+}
+
 /* ---------- Edición ---------- */
 function readVal(el) {
   if (el.type === "checkbox") return el.checked;
@@ -1272,6 +1680,14 @@ document.addEventListener("input", e => {
   if (d.k === "kdpDesc") { pintarDesc(); return; }
   if (d.l === "frases" && view.route === "redes") pintarTarjeta();
   if (d.k === "titulo" && !d.l) { renderNav(); return; }
+  if (d.l === "ingresos" && (d.k === "bruto" || d.k === "irpf")) {
+    const it = S.ingresos.find(x => x.id === d.id);
+    if (it && d.k === "irpf") it.irpfManual = el.value !== "";
+    if (it && d.k === "bruto" && !it.irpfManual) {
+      it.irpf = Math.round(num(it.bruto) * num(negocio().irpfPct)) / 100;
+      const ir = $(`[data-row="${it.id}"] [data-k="irpf"]`); if (ir) ir.value = it.irpf;
+    }
+  }
   // celdas calculadas de la fila
   const tr = el.closest("[data-row]");
   if (tr && d.l && COLS[d.l]) {
@@ -1325,11 +1741,14 @@ document.addEventListener("change", e => {
     return;
   }
   if (el.matches("select")) { applyEdit(el); save(); render(); return; }
+  // Se redibuja un poco después para no perder el clic si se ha salido del campo pulsando un botón
+  if (["negocio", "catalogo"].includes(view.route) && el.matches("input[type=number], input[type=month]")) { clearTimeout(view.rtTimer); view.rtTimer = setTimeout(render, 300); return; }
   if (el.type === "checkbox" && el.dataset.path) { render(); return; }
   if (el.dataset.k === "objetivoPalabras" || el.closest(".tiles") === null && ["pvp", "unidades", "costeEjemplar"].includes(el.dataset.k)) { render(); }
 });
 
 document.addEventListener("click", e => {
+  const ln = e.target.closest("a[data-nsub]"); if (ln) view.nsub = ln.dataset.nsub;
   const t = e.target.closest("button, input[type=checkbox]");
   if (!t) return;
   const d = t.dataset;
@@ -1375,6 +1794,25 @@ document.addEventListener("click", e => {
   if (t.id === "ajCopia") { $("#btnBackup").click(); return; }
   if (t.id === "ajReset") { $("#btnReset").click(); return; }
   if (t.id === "ajNovelia") { abrirNovelia(); return; }
+  if (t.id === "ajCentro") { abrirCentroControl(); return; }
+  if (d.nsub) { view.nsub = d.nsub; render(); return; }
+  if (d.dirtodo) { view.dirTodo = d.dirtodo === "1"; render(); return; }
+  if (t.id === "gestCopiar") { copiar($("#gestTxt").textContent, "Resumen copiado: pégalo en un email a tu gestoría"); return; }
+  if (t.id === "kdpBorrarMes") {
+    const prev = S.kdpVentas.slice(); S.kdpVentas = S.kdpVentas.filter(l => l.mes !== view.mes); save(); render();
+    toast("Líneas del mes borradas", () => { S.kdpVentas = prev; }); return;
+  }
+  if (t.id === "kdpImport") {
+    const res = importarKdp($("#kdpPaste").value), msg = $("#kdpMsg");
+    if (res.error) { msg.textContent = res.error; return; }
+    const meses = [...new Set(res.lineas.map(l => l.mes))].sort(), kenp = res.lineas[0].formato === "KENP";
+    const prev = S.kdpVentas.slice();
+    // Sustituye lo importado antes de esos meses (del mismo tipo) para no contarlo dos veces
+    S.kdpVentas = S.kdpVentas.filter(l => !(meses.includes(l.mes) && (l.formato === "KENP") === kenp)).concat(res.lineas);
+    view.mes = meses[meses.length - 1]; save(); render();
+    toast(`${res.lineas.length} líneas importadas (${meses.map(mesLabel).join(", ")})`, () => { S.kdpVentas = prev; });
+    return;
+  }
   if (d.tf) { tarj.formato = d.tf; render(); return; }
   if (d.te) { tarj.estilo = d.te; render(); return; }
   if (d.tag) {
@@ -1478,7 +1916,7 @@ $("#btnReset").addEventListener("click", () => {
     <div class="acts"><button class="btn ghost" type="button" data-close>Cancelar</button><button class="btn danger" type="button" id="rsOk">Borrar todo y empezar</button></div>`, box => {
     $("#rsOk", box).addEventListener("click", () => {
       const p = newProject("Mi novela");
-      S = { v: 1, activo: p.id, proyectos: [p], posts: [], ventas: [], prensa: [], colabs: [], perfil: S.perfil, ajustes: S.ajustes };
+      S = normalize({ v: 1, activo: p.id, proyectos: [p], posts: [], ventas: [], prensa: [], colabs: [], perfil: S.perfil, ajustes: S.ajustes });
       closeModal(); save(); location.hash = "libro"; render();
     });
   });
@@ -1510,14 +1948,14 @@ if (enClaude) connectDb(); else setSave("local", "Guardado en este navegador");
 // Primera vez: elegir entre ver el ejemplo o empezar con su novela
 if (!guardado && !enClaude) {
   openModal(`<div class="eyebrow">Te damos la bienvenida</div><h2>Kit Escritoras</h2>
-    <p style="margin:0">Todo lo que pasa cuando tu novela está escrita: ficha del libro, Amazon KDP, producción, checklist de lanzamiento, redes, pedidos, cuentas, prensa y la página para tu web.</p>
+    <p style="margin:0">Todo lo que pasa cuando tu novela está escrita: ficha del libro, Amazon KDP, producción, checklist de lanzamiento, redes, pedidos, cuentas, tu catálogo y el negocio (ventas, gastos e impuestos), prensa y la página para tu web.</p>
     <p class="hint" style="margin:0">Todo se guarda en este navegador, sin cuentas ni contraseñas. Desde «Copia de seguridad» puedes descargar tus datos cuando quieras.</p>
     <label class="field"><span>Título de tu novela</span><input type="text" id="wTit" placeholder="Puedes cambiarlo luego"></label>
     <div class="acts"><button class="btn ghost" type="button" id="wEj">Ver primero un ejemplo</button><button class="btn" type="button" id="wGo">Empezar con mi novela</button></div>`, box => {
     $("#wEj", box).addEventListener("click", () => { closeModal(); save(); });
     $("#wGo", box).addEventListener("click", () => {
       const p = newProject($("#wTit", box).value.trim() || "Mi novela");
-      S = { v: 1, activo: p.id, proyectos: [p], posts: [], ventas: [], prensa: [], colabs: [] };
+      S = normalize({ v: 1, activo: p.id, proyectos: [p], posts: [], ventas: [], prensa: [], colabs: [] });
       closeModal(); save(); location.hash = "libro"; render();
     });
   });
