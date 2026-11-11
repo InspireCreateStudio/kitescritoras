@@ -470,10 +470,11 @@ function pedidosStats(p) {
 /* ---------- Vistas ---------- */
 const ROUTES = [
   ["inicio", "Mi mes"], ["libro", "Libro"], ["kdp", "Amazon KDP"], ["produccion", "Producción"], ["lanzamiento", "Lanzamiento"],
-  ["redes", "Redes y citas"], ["pedidos", "Pedidos"], ["cuentas", "Cuentas"], ["catalogo", "Catálogo"], ["negocio", "Negocio"], ["prensa", "Prensa y colabs"], ["web", "Web"], ["ajustes", "Ajustes"]
+  ["redes", "Redes y citas"], ["pedidos", "Pedidos"], ["cuentas", "Cuentas"], ["catalogo", "Catálogo"], ["prensa", "Prensa y colabs"], ["web", "Web"], ["ajustes", "Ajustes"]
 ];
 // Direcciones de versiones anteriores
-const ALIAS = { novela: "libro", escritura: "inicio" };
+// Negocio se lleva en la app Centro de Control (decidido el 11 nov 2026); el código sigue aquí por si se recupera
+const ALIAS = { novela: "libro", escritura: "inicio", negocio: "catalogo" };
 const MONTHLY = ["inicio", "redes", "cuentas", "lanzamiento", "catalogo", "negocio"];
 
 const NAV_ICONOS = {"inicio": "<rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M3 10h18M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2\"/>", "libro": "<path d=\"M4 19.5V5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5 1.5 1.5 0 0 0 5.5 22H20v-4\"/><path d=\"M8 7h8\"/>", "kdp": "<path d=\"M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z\"/><path d=\"M3 7.5 12 12l9-4.5M12 12v9\"/>", "produccion": "<path d=\"M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z\"/>", "lanzamiento": "<path d=\"M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2\"/><path d=\"M14 4c3-1.5 6-1 6-1s.5 3-1 6l-6 6-5-5z\"/><path d=\"M9 10H5l3-3h4M14 15v4l3-3v-4\"/><circle cx=\"15.5\" cy=\"8.5\" r=\"1.3\"/>", "redes": "<rect x=\"6\" y=\"2.5\" width=\"12\" height=\"19\" rx=\"2.5\"/><path d=\"M10.5 18.5h3\"/><path d=\"m10 9 4.5 2.5L10 14z\"/>", "pedidos": "<path d=\"M4 7h16l-1.6 11.2A2 2 0 0 1 16.4 20H7.6a2 2 0 0 1-2-1.8z\"/><path d=\"M9 7V5a3 3 0 0 1 6 0v2\"/>", "cuentas": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M15.5 8.5a4 4 0 1 0 0 7M7 11h6M7 13.5h6\"/>", "catalogo": "<rect x=\"3.5\" y=\"4\" width=\"4\" height=\"16\" rx=\"1\"/><rect x=\"9.5\" y=\"4\" width=\"4\" height=\"16\" rx=\"1\"/><path d=\"m15.5 5.2 3.6-1 3.4 14.6-3.6 1z\"/>", "negocio": "<path d=\"M3 20h18M6 16v-4M10.5 16V8M15 16v-6M19.5 16V5\"/>", "prensa": "<path d=\"M3 10v4h3l7 4V6L6 10z\"/><path d=\"M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11\"/>", "web": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3 12h18M12 3c2.5 2.5 3.7 5.5 3.7 9s-1.2 6.5-3.7 9c-2.5-2.5-3.7-5.5-3.7-9S9.5 5.5 12 3z\"/>", "ajustes": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z\"/>"};
@@ -1176,7 +1177,7 @@ function vCuentas() {
     <div class="tiles" id="costTiles">${costTiles(cs)}</div>
     <div class="fgrid">${field("Ejemplares impresos", pf("unidades"), p.unidades, "number")}${field("Precio de venta (PVP)", pf("pvp"), p.pvp, "number")}</div>
     ${tableHTML("costes", "p", p.costes, { addLabel: "Añadir gasto" })}</div>
-  <div class="card"><div class="ch"><h3 style="text-transform:capitalize">Ventas de ${mesLabel(ym)}</h3><span class="hint">Si importas el informe de KDP en <a href="#negocio" data-nsub="amazon">Negocio</a>, ya se suma aquí solo</span></div>
+  <div class="card"><div class="ch"><h3 style="text-transform:capitalize">Ventas de ${mesLabel(ym)}</h3><span class="hint">Copia las cifras del informe de regalías de KDP</span></div>
     <div class="tiles" id="ventTiles">${ventTiles(vm)}</div>
     ${tableHTML("ventas", "g", rows, { preset: { mes: ym, libro: p.titulo, concepto: "Digital" }, addLabel: "Añadir línea", empty: "Sin ventas apuntadas este mes." })}</div>
   <div class="card chart"><div class="ch"><h3>Resultado neto de ${ym.slice(0, 4)}</h3><span class="hint" id="anualTot"></span></div><div id="chart"></div></div>`;
@@ -1437,7 +1438,7 @@ function vCatalogo() {
     ${tile("El que más te deja", top ? esc(top.libro) : "—", top ? eur(top.total) + " en " + y : "importa tus ventas", "lav")}</div>
   <div class="card"><div class="ch"><h3>Catálogo</h3><span class="hint">El ASIN y el ISBN sirven para reconocer cada libro en los informes de Amazon</span></div>
     ${tableHTML("catalogo", "g", S.catalogo, { addLabel: "Añadir libro", empty: "Apunta aquí todos tus libros, también los descatalogados.", preset: { estado: "Activo" } })}</div>
-  <div class="card"><div class="ch"><h3>Regalías de Amazon por libro en ${y}</h3><a class="hint" href="#negocio" data-nsub="amazon">Importar ventas de Amazon</a></div>
+  <div class="card"><div class="ch"><h3>Regalías de Amazon por libro en ${y}</h3><span class="hint">Salen de lo que traes del Centro de control (Ajustes)</span></div>
     ${libros.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Libro</th><th>Ebook</th><th>Papel</th><th>Páginas KENP</th><th>KENP (estimado)</th><th>Total</th><th>Ejemplares</th></tr></thead><tbody>${libros.map(fila).join("")}</tbody>
     <tfoot><tr><td><b>Total</b></td><td class="calc">${eur(libros.reduce((s, o) => s + o.ebook, 0))}</td><td class="calc">${eur(libros.reduce((s, o) => s + o.papel, 0))}</td><td class="calc">${fmt(libros.reduce((s, o) => s + o.kenp, 0))}</td><td class="calc">${eur(libros.reduce((s, o) => s + o.kenpEur, 0))}</td><td class="calc"><b>${eur(tot)}</b></td><td class="calc">${fmt(libros.reduce((s, o) => s + o.uds, 0))}</td></tr></tfoot></table></div>`
       : `<p class="empty">No hay ventas de Amazon importadas de ${y}. ${(S.kdpVentas || []).some(l => String(l.mes).startsWith(yPrev)) ? "Prueba con " + yPrev + "." : ""}</p>`}</div>
@@ -1758,7 +1759,7 @@ function abrirCentroControl() {
         const res = cargarCentroControl(d);
         if (typeof res === "string") { msg.textContent = res; return; }
         msg.innerHTML = `Trae ${res.pend.map(([k, n]) => n + " " + NOMBRES_LISTAS[k]).join(", ")}. Sustituye lo que haya ahora en esas secciones. <button class="btn sm" type="button" id="ccSi">Cargar</button>`;
-        $("#ccSi", box).addEventListener("click", () => { res.aplicar(); closeModal(); save(); location.hash = "negocio"; view.nsub = "resumen"; render(); toast("Datos del Centro de control cargados"); });
+        $("#ccSi", box).addEventListener("click", () => { res.aplicar(); closeModal(); save(); location.hash = "catalogo"; render(); toast("Datos del Centro de control cargados"); });
       };
       if (/\.xls[xm]$/i.test(f.name)) {
         msg.textContent = "Leyendo el Excel… (puede tardar unos segundos)";
@@ -2204,6 +2205,17 @@ S = normalize(guardado || seed());
 aplicarAcento();
 route();
 pintarUltimaCopia();
+// Recordatorio de copia de seguridad: una vez por sesión si hace más de 14 días (o nunca) y ya hay cosas apuntadas
+setTimeout(() => {
+  try {
+    if (sessionStorage.getItem("ks-aviso-copia")) return;
+    const dias = S.ultimaCopia ? Math.round((new Date(TODAY) - new Date(S.ultimaCopia)) / 86400000) : null;
+    const hayDatos = (S.proyectos || []).some(p => p.titulo && !/ejemplo/i.test(p.titulo)) || (S.catalogo || []).length;
+    if (!hayDatos || (dias !== null && dias < 14)) return;
+    sessionStorage.setItem("ks-aviso-copia", "1");
+    toast(dias === null ? "Aún no has hecho ninguna copia de seguridad: pulsa «Copia» en el menú." : `Hace ${dias} días de tu última copia de seguridad: pulsa «Copia» en el menú.`);
+  } catch (e) { /* sin sessionStorage */ }
+}, 2500);
 const enClaude = !!(window.claude && typeof window.claude.use === "function");
 setSave("", enClaude ? "Conectando…" : "Guardado en este navegador");
 if (enClaude) connectDb(); else setSave("local", "Guardado en este navegador");
