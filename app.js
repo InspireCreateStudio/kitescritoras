@@ -468,7 +468,7 @@ function pedidosStats(p) {
 /* ---------- Vistas ---------- */
 const ROUTES = [
   ["inicio", "Mi mes"], ["libro", "Libro"], ["kdp", "Amazon KDP"], ["produccion", "Producción"], ["lanzamiento", "Lanzamiento"],
-  ["redes", "Redes y citas"], ["pedidos", "Pedidos"], ["cuentas", "Cuentas"], ["prensa", "Prensa y colabs"], ["web", "Web"]
+  ["redes", "Redes y citas"], ["pedidos", "Pedidos"], ["cuentas", "Cuentas"], ["prensa", "Prensa y colabs"], ["web", "Web"], ["ajustes", "Ajustes"]
 ];
 // Direcciones de versiones anteriores
 const ALIAS = { novela: "libro", escritura: "inicio" };
@@ -484,7 +484,7 @@ function renderNav() {
 function render() {
   if (!S) return;
   renderNav();
-  const fn = { inicio: vInicio, libro: vLibro, kdp: vKdp, produccion: vProduccion, lanzamiento: vLanzamiento, redes: vRedes, pedidos: vPedidos, cuentas: vCuentas, prensa: vPrensa, web: vWeb }[view.route] || vInicio;
+  const fn = { inicio: vInicio, libro: vLibro, kdp: vKdp, produccion: vProduccion, lanzamiento: vLanzamiento, redes: vRedes, pedidos: vPedidos, cuentas: vCuentas, prensa: vPrensa, web: vWeb, ajustes: vAjustes }[view.route] || vInicio;
   const y = window.scrollY;
   try {
     $("#view").innerHTML = fn();
@@ -510,6 +510,156 @@ const getPath = (o, path) => { for (const k of path.split(".")) { if (o == null)
 const pp = path => `data-s="p" data-path="${path}"`;
 const cnt = (k, v, max) => `<em class="count${String(v || "").length > max ? " over" : ""}" data-countfor="${k}">${String(v || "").length}/${max}</em>`;
 const fieldMax = (label, k, v, max, type = "area") => field(label, `${pf(k)} data-max="${max}"`, v, type, cnt(k, v, max));
+
+/* ---------- Perfil, ajustes y calendario de Mi mes ---------- */
+const ACENTOS = [["#a5595d", "Rosa"], ["#7a1f3d", "Vino"], ["#b5536b", "Frambuesa"], ["#6b4f8a", "Lavanda"], ["#3d6a8a", "Azul"], ["#2f5d50", "Verde"], ["#c27c4e", "Teja"], ["#3a2a2c", "Tinta"]];
+const CAL_TIPOS = [["tareas", "Tareas del checklist"], ["redes", "Publicaciones de redes"], ["lanz", "Lanzamiento y preventa"], ["prod", "Fases de producción"], ["formatos", "Fechas de Amazon (ebook, papel)"], ["betas", "Lectoras beta (envío y devolución)"]];
+function perfil() {
+  if (!S.perfil || typeof S.perfil !== "object") S.perfil = {};
+  const pr = S.perfil;
+  ["nombre", "usuario", "genero", "foto", "bio"].forEach(k => { if (pr[k] == null) pr[k] = ""; });
+  if (!pr.enlaces || typeof pr.enlaces !== "object") pr.enlaces = {};
+  ["instagram", "tiktok", "web"].forEach(k => { if (pr.enlaces[k] == null) pr.enlaces[k] = ""; });
+  return pr;
+}
+function ajustes() {
+  if (!S.ajustes || typeof S.ajustes !== "object") S.ajustes = {};
+  const a = S.ajustes;
+  if (!a.acento) a.acento = "#a5595d";
+  if (!a.cal || typeof a.cal !== "object") a.cal = {};
+  CAL_TIPOS.forEach(([k]) => { if (typeof a.cal[k] !== "boolean") a.cal[k] = true; });
+  if (!a.calTam) a.calTam = "grande";
+  return a;
+}
+function aplicarAcento() {
+  const c = ajustes().acento || "#a5595d";
+  const r = document.documentElement.style;
+  r.setProperty("--rosa", c);
+  r.setProperty("--rosa-2", `color-mix(in srgb, ${c} 75%, #ffffff)`);
+  r.setProperty("--empolvado", `color-mix(in srgb, ${c} 45%, #ffffff)`);
+  r.setProperty("--nube", `color-mix(in srgb, ${c} 12%, #ffffff)`);
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", c);
+}
+const inicial = s => (String(s || "").trim()[0] || "✎").toUpperCase();
+function enlaceRed(k, v) {
+  v = String(v || "").trim(); if (!v) return "";
+  if (/^https?:\/\//i.test(v)) return v;
+  const h = v.replace(/^@/, "");
+  if (k === "instagram") return "https://www.instagram.com/" + h;
+  if (k === "tiktok") return "https://www.tiktok.com/@" + h;
+  return "https://" + v.replace(/^\/+/, "");
+}
+function saludo() { const h = new Date().getHours(); return h < 6 ? "Buenas noches" : h < 14 ? "Buenos días" : h < 21 ? "Buenas tardes" : "Buenas noches"; }
+function tarjetaPerfil() {
+  const pr = perfil();
+  const nom = pr.nombre.trim();
+  const links = [["instagram", "Instagram"], ["tiktok", "TikTok"], ["web", "Web"]].filter(([k]) => pr.enlaces[k].trim())
+    .map(([k, t]) => `<a href="${esc(enlaceRed(k, pr.enlaces[k]))}" target="_blank" rel="noopener">${t}</a>`).join("");
+  return `<p class="saludo">${saludo()}${nom ? ", " + esc(nom.split(/\s+/)[0]) : ""}</p>
+  <div class="card perfil-card">
+    <div class="avatar">${pr.foto ? `<img src="${pr.foto}" alt="">` : esc(inicial(nom))}</div>
+    <div class="perfil-txt">
+      <div class="perfil-nom">${esc(nom || "Tu nombre de autora")}</div>
+      <div class="perfil-sub">${[pr.usuario ? esc(pr.usuario.startsWith("@") ? pr.usuario : "@" + pr.usuario) : "", esc(pr.genero)].filter(Boolean).join(" · ") || "Pon tu nombre, tu foto y tus redes en Ajustes"}</div>
+      ${links ? `<div class="perfil-links">${links}</div>` : ""}
+    </div>
+    <a class="btn ghost" href="#ajustes">Editar perfil</a>
+  </div>`;
+}
+
+/* Calendario del mes: todo lo que tiene fecha */
+function cosasDelMes(ym) {
+  const p = P(), a = ajustes().cal, out = {};
+  const add = (f, x) => { if (f && monthOf(f) === ym) (out[f] = out[f] || []).push(x); };
+  if (a.lanz) {
+    if (p.lanzFecha) add(p.lanzFecha, { tipo: "lanz", txt: "🚀 Lanzamiento", ir: "lanzamiento" });
+    if (p.preventaFecha) add(p.preventaFecha, { tipo: "lanz", txt: "🛒 Abre la preventa", ir: "lanzamiento" });
+  }
+  if (a.tareas) p.tareas.filter(t => t.fecha).forEach(t => add(t.fecha, { tipo: "tarea", txt: t.tarea, hecho: t.estado === "Hecho", id: t.id, fase: t.fase, ir: "lanzamiento" }));
+  if (a.redes) S.posts.filter(x => x.fecha).forEach(x => add(x.fecha, { tipo: "redes", txt: `${x.tipo}: ${x.contenido || "sin título"}`, hecho: ["Publicado", "Analizado"].includes(x.estado), estado: x.estado, ir: "redes" }));
+  if (a.prod) p.fases.filter(f => f.fecha).forEach(f => add(f.fecha, { tipo: "prod", txt: f.nombre, hecho: f.estado === "Hecho", ir: "produccion" }));
+  if (a.formatos) [["ebook", "Ebook"], ["blanda", "Tapa blanda"], ["dura", "Tapa dura"]].forEach(([k, n]) => { const f = p.formatos[k] || {}; if (f.fecha) add(f.fecha, { tipo: "kdp", txt: `${n}${f.estado ? " · " + f.estado : ""}`, ir: "kdp" }); });
+  if (a.betas) p.betas.forEach(b => {
+    if (b.enviado) add(b.enviado, { tipo: "beta", txt: `Enviado a ${b.nombre || b.papel}`, ir: "produccion" });
+    if (b.devuelto) add(b.devuelto, { tipo: "beta", txt: `Devuelto por ${b.nombre || b.papel}`, hecho: true, ir: "produccion" });
+  });
+  const ord = { lanz: 0, tarea: 1, prod: 2, kdp: 3, beta: 4, redes: 5 };
+  Object.values(out).forEach(l => l.sort((x, y) => (x.hecho ? 1 : 0) - (y.hecho ? 1 : 0) || ord[x.tipo] - ord[y.tipo]));
+  return out;
+}
+const ETIQ_CAL = { lanz: "Lanzamiento", tarea: "Tarea", redes: "Redes", prod: "Producción", kdp: "Amazon", beta: "Lectoras" };
+function tarjetaCalendario(ym) {
+  const C = cosasDelMes(ym), a = ajustes();
+  const grande = a.calTam !== "pequeño";
+  const days = monthDays(ym);
+  if (!view.diaSel || monthOf(view.diaSel) !== ym) view.diaSel = monthOf(TODAY) === ym ? TODAY : "";
+  let cells = DIAS.map(d => `<div class="dn">${d}</div>`).join("");
+  for (let i = 0; i < dow(days[0]); i++) cells += `<div class="day blank" aria-hidden="true"></div>`;
+  days.forEach(d => {
+    const l = C[d] || [];
+    const tarde = d < TODAY && l.some(x => x.tipo === "tarea" && !x.hecho);
+    const cont = grande
+      ? `<div class="chips">${l.slice(0, 3).map(x => `<span class="ev ev-${x.tipo}${x.hecho ? " hecho" : ""}" title="${esc(ETIQ_CAL[x.tipo] + ": " + x.txt)}">${esc(x.txt)}</span>`).join("")}${l.length > 3 ? `<span class="mas">+${l.length - 3} más</span>` : ""}</div>`
+      : `<div class="puntos">${l.slice(0, 6).map(x => `<i class="ev-${x.tipo}${x.hecho ? " hecho" : ""}"></i>`).join("")}</div>`;
+    cells += `<button type="button" class="day dia-cal${d === TODAY ? " today" : ""}${d === view.diaSel ? " sel" : ""}${tarde ? " tarde" : ""}" data-dia="${d}" aria-label="${dayLabel(d)}: ${l.length} cosas">
+      <span class="num">${Number(d.slice(8))}</span>${cont}</button>`;
+  });
+  const sel = view.diaSel ? (C[view.diaSel] || []) : [];
+  const leyenda = CAL_TIPOS.filter(([k]) => a.cal[k]).map(([k]) => ({ tareas: "tarea", redes: "redes", lanz: "lanz", prod: "prod", formatos: "kdp", betas: "beta" })[k])
+    .map(t => `<span class="ley"><i class="ev-${t}"></i>${ETIQ_CAL[t]}</span>`).join("");
+  return `<div class="card"><div class="ch"><h3>Calendario</h3>
+      <div class="filters" style="margin:0"><button type="button" data-caltam="grande" aria-pressed="${grande}">Grande</button><button type="button" data-caltam="pequeño" aria-pressed="${!grande}">Pequeño</button></div></div>
+    <div class="leyenda">${leyenda}</div>
+    <div class="cal calmes${grande ? "" : " peq"}">${cells}</div>
+    ${view.diaSel ? `<div class="dia-lista"><h3>${(t => t[0].toUpperCase() + t.slice(1))(new Date(view.diaSel + "T12:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }))}</h3>
+      ${sel.length ? `<div class="list">${sel.map(x => `<div class="li">${x.tipo === "tarea" ? `<input type="checkbox" data-done="${x.id}"${x.hecho ? " checked disabled" : ""} aria-label="Marcar como hecha">` : `<i class="punto ev-${x.tipo}"></i>`}
+        <div class="grow"><div${x.hecho ? ' style="text-decoration:line-through;color:var(--gris)"' : ""}>${esc(x.txt)}</div><div class="meta">${ETIQ_CAL[x.tipo]}${x.fase ? " · " + esc(x.fase) : ""}${x.estado ? " · " + esc(x.estado) : ""}</div></div>
+        <a class="hint" href="#${x.ir}">Abrir</a></div>`).join("")}</div>` : `<div class="empty">Nada este día.</div>`}</div>` : ""}
+  </div>`;
+}
+
+/* Ajustes */
+function vAjustes() {
+  const pr = perfil(), a = ajustes();
+  const gp = path => `data-s="g" data-path="${path}"`;
+  return `
+  <div class="head"><div><div class="eyebrow">Ajustes</div><h1>Tu kit, a tu manera</h1><p>Tu perfil, el color de la app, qué sale en el calendario y tus datos.</p></div></div>
+  <div class="card"><h3>Tu perfil</h3>
+    <div class="perfil-edit">
+      <div class="portada-card" style="align-items:center">
+        <div class="avatar grande">${pr.foto ? `<img src="${pr.foto}" alt="">` : esc(inicial(pr.nombre))}</div>
+        <label class="btn ghost sm">${pr.foto ? "Cambiar foto" : "Subir foto"}<input type="file" id="fFoto" accept="image/*" style="display:none"></label>
+        ${pr.foto ? `<button class="linkbtn" type="button" id="quitarFoto">Quitar foto</button>` : ""}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;flex:1;min-width:0">
+        <div class="fgrid">${field("Nombre de autora", gp("perfil.nombre"), pr.nombre)}${field("Usuario", gp("perfil.usuario"), pr.usuario)}${field("Género", gp("perfil.genero"), pr.genero)}</div>
+        <div class="fgrid">${field("Instagram (usuario o enlace)", gp("perfil.enlaces.instagram"), pr.enlaces.instagram)}${field("TikTok (usuario o enlace)", gp("perfil.enlaces.tiktok"), pr.enlaces.tiktok)}${field("Web", gp("perfil.enlaces.web"), pr.enlaces.web)}</div>
+        <p class="hint" style="margin:0">Tu nombre sale en el saludo de «Mi mes». Si en la ficha de un libro no pones autora, se usa este.</p>
+      </div>
+    </div></div>
+  <div class="card"><h3>Color de la app</h3>
+    <div class="acentos">${ACENTOS.map(([c, n]) => `<button type="button" data-acento="${c}" title="${n}" aria-label="${n}" aria-pressed="${a.acento === c}" style="background:${c}"></button>`).join("")}
+      <label class="otro">Otro <input type="color" id="acentoLibre" value="${esc(a.acento)}"></label></div></div>
+  <div class="card"><h3>Calendario de «Mi mes»</h3>
+    <div class="checks">${CAL_TIPOS.map(([k, t]) => `<label class="chk" style="margin:0"><input type="checkbox" ${gp("ajustes.cal." + k)}${a.cal[k] ? " checked" : ""}> ${t}</label>`).join("")}</div>
+    <div class="filters">Tamaño: <button type="button" data-caltam="grande" aria-pressed="${a.calTam !== "pequeño"}">Grande, con el texto</button><button type="button" data-caltam="pequeño" aria-pressed="${a.calTam === "pequeño"}">Pequeño, con puntos</button></div></div>
+  <div class="card"><h3>Tus datos</h3>
+    <p class="hint" style="margin:0">Todo se guarda en este navegador. Descarga una copia de vez en cuando y guárdala en tu ordenador o en Drive.</p>
+    <div class="filters"><button type="button" id="ajCopia">Copia de seguridad</button><button type="button" id="ajNovelia">Traer de Novelia Studio</button><button type="button" id="ajReset">Empezar en blanco</button></div></div>`;
+}
+function leerFoto(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file); const im = new Image();
+    im.onload = () => {
+      const L = 320, k = Math.max(L / im.width, L / im.height);
+      const c = document.createElement("canvas"); c.width = L; c.height = L;
+      c.getContext("2d").drawImage(im, (L - im.width * k) / 2, (L - im.height * k) / 2, im.width * k, im.height * k);
+      URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", .85));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error("imagen")); };
+    im.src = url;
+  });
+}
 
 /* 1. Mi mes */
 function vInicio() {
@@ -537,6 +687,7 @@ function vInicio() {
     : faltan === 0 ? tile("Lanzamiento", "¡Hoy!", "es el día D", "ok") : tile("Lanzado", dayLabel(p.lanzFecha), "hace " + (-faltan) + " días", "ok");
 
   return `
+  ${tarjetaPerfil()}
   <div class="head"><div><div class="eyebrow">${esc(p.titulo)}</div><h1 style="text-transform:capitalize">${mesLabel(ym)}</h1>
     <p>Cómo va tu libro: producción, lanzamiento, redes y ventas. Cambia de mes con las flechas de arriba.</p></div></div>
   <div class="tiles">
@@ -547,6 +698,7 @@ function vInicio() {
     ${tile("Ventas netas", eur(vm.neto), `${eur(vm.ing)} regalías · ${eur(vm.gas)} anuncios`, vm.neto < 0 ? "bad" : vm.neto > 0 ? "ok" : "")}
     ${tile("Pedidos", ps.porEnviar + " por enviar", `${eur(ps.porCobrar)} por cobrar`, ps.porEnviar ? "warn" : "")}
   </div>
+  ${tarjetaCalendario(ym)}
   <div class="card"><div class="ch"><h3>Manuscrito</h3><span class="hint">${fmt(pal)} de ${fmt(p.objetivoPalabras)} palabras · ${totalPct}% · <a href="#libro">cambiar</a></span></div>${bar(totalPct, totalPct >= 100 ? "ok" : "")}</div>
   <div class="grid g2">
     <div class="card"><div class="ch"><h3>Próximas tareas</h3><a href="#lanzamiento" class="hint">Ver todas</a></div>
@@ -851,7 +1003,7 @@ async function pintarTarjeta() {
   g.globalAlpha = .35; g.font = `${tam * 2.6}px ${serif}`; g.fillText("“", W / 2, y - tam * 1.45); g.globalAlpha = 1;
   g.font = `italic 600 ${tam}px ${serif}`;
   lineas.forEach((l, i) => g.fillText(l, W / 2, y + i * tam * 1.3));
-  const pie = [p.titulo, p.autora].filter(Boolean).join(" · ").toUpperCase();
+  const pie = [p.titulo, p.autora || perfil().nombre].filter(Boolean).join(" · ").toUpperCase();
   g.font = '700 28px "Nunito Sans", sans-serif'; g.globalAlpha = .85;
   if ("letterSpacing" in g) g.letterSpacing = "4px";
   g.fillText(pie, W / 2, H - 110); g.globalAlpha = 1;
@@ -926,6 +1078,11 @@ function importarNovelia(d, destino) {
   put("pitch", F.pitch); put("sinopsisCorta", F.sinopsisCorta); put("sinopsis", F.sinopsisLarga);
   if (Array.isArray(F.tropos) && F.tropos.length) p.tropos = F.tropos.join(" · ");
   put("autora", d.autora); put("portada", n.portada);
+  if (d.perfil && typeof d.perfil === "object") {
+    const pr = perfil();
+    ["nombre", "usuario", "genero", "foto"].forEach(k => { if (!String(pr[k]).trim() && d.perfil[k]) pr[k] = d.perfil[k]; });
+    ["instagram", "tiktok", "web"].forEach(k => { const v = d.perfil.enlaces && d.perfil.enlaces[k]; if (!String(pr.enlaces[k]).trim() && v) pr.enlaces[k] = v; });
+  }
   if (num(n.palabras) > 0) p.palabrasEscritas = Math.round(num(n.palabras));
   if (num(n.objetivo) > 0) p.objetivoPalabras = Math.round(num(n.objetivo));
   if (Array.isArray(K.keywords) && K.keywords.some(x => String(x).trim())) { p.kdp = K.keywords.slice(0, 7).map(String); while (p.kdp.length < 7) p.kdp.push(""); }
@@ -1139,6 +1296,12 @@ document.addEventListener("input", e => {
 document.addEventListener("change", e => {
   const el = e.target;
   if (!el.closest("#view")) return;
+  if (el.id === "fFoto") {
+    const f = el.files && el.files[0]; if (!f) return;
+    leerFoto(f).then(url => { perfil().foto = url; save(); render(); toast("Foto guardada"); }).catch(() => toast("No he podido leer esa imagen. Prueba con un JPG o PNG."));
+    return;
+  }
+  if (el.id === "acentoLibre") { ajustes().acento = el.value; aplicarAcento(); save(); render(); return; }
   if (el.id === "tjFrase") { tarj.frase = el.value; pintarTarjeta(); return; }
   if (el.id === "fPortada") {
     const f = el.files && el.files[0]; if (!f) return;
@@ -1205,6 +1368,13 @@ document.addEventListener("click", e => {
     const inp = $(`[data-row="${last.id}"] [data-k="contenido"]`); if (inp) inp.focus();
     return;
   }
+  if (d.dia) { view.diaSel = view.diaSel === d.dia ? "" : d.dia; render(); return; }
+  if (d.caltam) { ajustes().calTam = d.caltam; save(); render(); return; }
+  if (d.acento) { ajustes().acento = d.acento; aplicarAcento(); save(); render(); return; }
+  if (t.id === "quitarFoto") { const pr = perfil(), prev = pr.foto; pr.foto = ""; save(); render(); toast("Foto quitada", () => { pr.foto = prev; }); return; }
+  if (t.id === "ajCopia") { $("#btnBackup").click(); return; }
+  if (t.id === "ajReset") { $("#btnReset").click(); return; }
+  if (t.id === "ajNovelia") { abrirNovelia(); return; }
   if (d.tf) { tarj.formato = d.tf; render(); return; }
   if (d.te) { tarj.estilo = d.te; render(); return; }
   if (d.tag) {
@@ -1260,7 +1430,7 @@ function restaurar(texto, msgEl) {
   if (!d || !Array.isArray(d.proyectos)) { msgEl.textContent = "Ese archivo no es una copia del Kit Escritoras."; return; }
   const n = d.proyectos.length;
   msgEl.innerHTML = `La copia tiene ${n} ${n === 1 ? "novela" : "novelas"}. Al restaurarla se sustituye todo lo que hay ahora en este aparato. <button class="btn sm danger" type="button" id="bkSi">Sí, restaurar</button>`;
-  $("#bkSi").addEventListener("click", () => { S = normalize(d); closeModal(); save(); render(); toast("Datos restaurados"); });
+  $("#bkSi").addEventListener("click", () => { S = normalize(d); aplicarAcento(); closeModal(); save(); render(); toast("Datos restaurados"); });
 }
 function descargarCopia() {
   S.ultimaCopia = TODAY;
@@ -1308,7 +1478,7 @@ $("#btnReset").addEventListener("click", () => {
     <div class="acts"><button class="btn ghost" type="button" data-close>Cancelar</button><button class="btn danger" type="button" id="rsOk">Borrar todo y empezar</button></div>`, box => {
     $("#rsOk", box).addEventListener("click", () => {
       const p = newProject("Mi novela");
-      S = { v: 1, activo: p.id, proyectos: [p], posts: [], ventas: [], prensa: [], colabs: [] };
+      S = { v: 1, activo: p.id, proyectos: [p], posts: [], ventas: [], prensa: [], colabs: [], perfil: S.perfil, ajustes: S.ajustes };
       closeModal(); save(); location.hash = "libro"; render();
     });
   });
@@ -1330,6 +1500,7 @@ window.addEventListener("hashchange", route);
 /* ---------- Arranque ---------- */
 const guardado = loadLocal();
 S = normalize(guardado || seed());
+aplicarAcento();
 route();
 pintarUltimaCopia();
 const enClaude = !!(window.claude && typeof window.claude.use === "function");
