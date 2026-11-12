@@ -330,3 +330,6 @@ select.pill { appearance: none; -webkit-appearance: none; border-radius: 999px !
 .porque ul { margin: 0 0 8px; padding-left: 18px; }
 .porque li { margin: 2px 0; }
 .tbl.cmp th:not(:first-child) { text-align: right; }
+
+/* Datos que vienen de otras apps */
+.dato-fijo { border: 1px dashed var(--linea); border-radius: 8px; padding: 8px 10px; background: var(--lino, #f8f2ef); font-variant-numeric: tabular-nums; font-weight: 700; }

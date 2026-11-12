@@ -739,8 +739,7 @@ function vLibro() {
         ${field("Serie", pf("serie"), p.serie)}${field("Número en la serie", pf("numero"), p.numero)}${field("Género", pf("genero"), p.genero)}
         ${field("Subgénero", pf("subgenero"), p.subgenero)}${field("Tropos", pf("tropos"), p.tropos)}${field("Para fans de… (autoras o libros parecidos)", pf("comparables"), p.comparables)}</div>
       ${field("Avisos de contenido", pf("avisos"), p.avisos)}
-      <div class="fgrid">${field("Objetivo de palabras", pf("objetivoPalabras"), p.objetivoPalabras, "number")}${field("Palabras escritas", pf("palabrasEscritas"), p.palabrasEscritas, "number")}</div>
-      <p class="hint" style="margin:0">Las palabras escritas las puedes traer de Novelia Studio o apuntarlas a mano.</p>
+      ${bloquePalabras(p)}
     </div>
   </div>
   <div class="card"><h3>Sinopsis</h3>
@@ -756,6 +755,16 @@ function vLibro() {
     <div class="grid g2">${field("Legales", pf("legales"), p.legales, "area")}
     <div style="display:flex;flex-direction:column;gap:12px">${field("Epígrafe", pf("epigrafe"), p.epigrafe, "area")}${field("Dedicatoria del libro", pf("dedicatoria"), p.dedicatoria, "area")}${field("Dedicatoria para libros firmados", pf("dedicatoriaFirma"), p.dedicatoriaFirma, "area")}</div></div>
   </div>`;
+}
+
+function bloquePalabras(p) {
+  const nv = novelaVinculada(p), lista = ENLACE.novelia || [];
+  const sel = lista.length ? `<label class="field"><span>Novela en Novelia Studio</span><select id="selNovelia">
+      <option value="">— No vincular (apunto las palabras a mano) —</option>${lista.map(x => `<option value="${esc(x.id)}"${x.id === p.noveliaId ? " selected" : ""}>${esc(x.titulo)} · ${fmt(x.palabras)} palabras</option>`).join("")}</select></label>` : "";
+  if (nv) return `${sel}<div class="fgrid"><div class="field"><span>Objetivo de palabras</span><div class="dato-fijo">${fmt(p.objetivoPalabras)}</div></div><div class="field"><span>Palabras escritas</span><div class="dato-fijo">${fmt(p.palabrasEscritas)}</div></div></div>
+      <p class="hint" style="margin:0">Vienen de Novelia y se actualizan solas cada vez que abres el Kit. Para cambiarlas, escribe en Novelia.</p>`;
+  return `${sel}<div class="fgrid">${field("Objetivo de palabras", pf("objetivoPalabras"), p.objetivoPalabras, "number")}${field("Palabras escritas", pf("palabrasEscritas"), p.palabrasEscritas, "number")}</div>
+      <p class="hint" style="margin:0">${lista.length ? "Si escribes esta novela en Novelia, elígela arriba y las palabras se pondrán solas." : "Si escribes en Novelia Studio en este navegador, las palabras se pondrán solas. Si no, apúntalas a mano."}</p>`;
 }
 
 /* 3. Amazon KDP */
@@ -1427,6 +1436,12 @@ function porLibro(year) {
 }
 
 /* ---- Vista: Catálogo ---- */
+function tablaCatalogoCentro() {
+  const c = ENLACE.centro, cuando = c.fecha ? new Date(c.fecha).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" }) : "";
+  const filas = S.catalogo.map(b => `<tr><td>${esc(b.titulo)}</td><td>${esc(b.serie)}</td><td>${esc(b.genero)}</td><td><span class="chip ${tone(b.estado)}">${esc(b.estado)}</span></td><td>${b.fecha ? esc(dayLabel(b.fecha)) : ""}</td><td>${esc(b.asin)}</td><td>${esc(b.isbn)}</td></tr>`).join("");
+  return `<div class="note">Tus libros y las ventas de Amazon vienen de tu <b>Centro de Control</b>${cuando ? ` (último cambio: ${esc(cuando)})` : ""}. Aquí solo se ven: para añadir o cambiar un libro, hazlo allí y se pondrá solo. <a href="../centrodecontrol/" target="_blank" rel="noopener">Abrir el Centro de Control</a></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Título</th><th>Serie y nº</th><th>Género</th><th>Estado</th><th>Publicado</th><th>ASIN ebook</th><th>ISBN papel</th></tr></thead><tbody>${filas || `<tr><td colspan="7" class="empty">El Centro de Control no tiene libros todavía.</td></tr>`}</tbody></table></div>`;
+}
 function vCatalogo() {
   const y = view.mes.slice(0, 4), libros = porLibro(y);
   const act = S.catalogo.filter(c => c.estado === "Activo").length;
@@ -1443,8 +1458,8 @@ function vCatalogo() {
   <div class="tiles">${tile("Libros", S.catalogo.length, act + " activos", "")}${tile("Amazon en " + y, eur(tot), "ebook + papel + KENP", tot ? "ok" : "")}
     ${tile("El que más te deja", top ? esc(top.libro) : "—", top ? eur(top.total) + " en " + y : "importa tus ventas", "lav")}</div>
   <div class="card"><div class="ch"><h3>Catálogo</h3><span class="hint">El ASIN y el ISBN sirven para reconocer cada libro en los informes de Amazon</span></div>
-    ${tableHTML("catalogo", "g", S.catalogo, { addLabel: "Añadir libro", empty: "Apunta aquí todos tus libros, también los descatalogados.", preset: { estado: "Activo" } })}</div>
-  <div class="card"><div class="ch"><h3>Regalías de Amazon por libro en ${y}</h3><span class="hint">Salen de lo que traes del Centro de control (Ajustes)</span></div>
+    ${ENLACE.centro ? tablaCatalogoCentro() : tableHTML("catalogo", "g", S.catalogo, { addLabel: "Añadir libro", empty: "Apunta aquí todos tus libros, también los descatalogados.", preset: { estado: "Activo" } })}</div>
+  <div class="card"><div class="ch"><h3>Regalías de Amazon por libro en ${y}</h3><span class="hint">${ENLACE.centro ? "Salen de tu Centro de Control" : "Salen de lo que traes del Centro de control (Ajustes)"}</span></div>
     ${libros.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Libro</th><th>Ebook</th><th>Papel</th><th>Páginas KENP</th><th>KENP (estimado)</th><th>Total</th><th>Ejemplares</th></tr></thead><tbody>${libros.map(fila).join("")}</tbody>
     <tfoot><tr><td><b>Total</b></td><td class="calc">${eur(libros.reduce((s, o) => s + o.ebook, 0))}</td><td class="calc">${eur(libros.reduce((s, o) => s + o.papel, 0))}</td><td class="calc">${fmt(libros.reduce((s, o) => s + o.kenp, 0))}</td><td class="calc">${eur(libros.reduce((s, o) => s + o.kenpEur, 0))}</td><td class="calc"><b>${eur(tot)}</b></td><td class="calc">${fmt(libros.reduce((s, o) => s + o.uds, 0))}</td></tr></tfoot></table></div>`
       : `<p class="empty">No hay ventas de Amazon importadas de ${y}. ${(S.kdpVentas || []).some(l => String(l.mes).startsWith(yPrev)) ? "Prueba con " + yPrev + "." : ""}</p>`}</div>
@@ -1987,6 +2002,7 @@ document.addEventListener("change", e => {
     return;
   }
   if (el.id === "acentoLibre") { ajustes().acento = el.value; aplicarAcento(); save(); render(); return; }
+  if (el.id === "selNovelia") { P().noveliaId = el.value || ""; save(); traerDeOtrasApps(); toast(el.value ? "Vinculada con Novelia" : "Sin vincular: apunta las palabras a mano"); return; }
   if (el.id === "tjFrase") { tarj.frase = el.value; pintarTarjeta(); return; }
   if (el.id === "fPortada") {
     const f = el.files && el.files[0]; if (!f) return;
@@ -2495,5 +2511,82 @@ document.addEventListener('click', async (ev) => {
     if (!document.hidden) ksSincronizar(); else if (KSync.e.sucio) ksSincronizar();
   });
 })();
+
+
+/* ---------- Datos que viven en las otras apps ----------
+   El Kit, el Centro de Control y Novelia están en la misma dirección (inspirecreatestudio.github.io),
+   así que el Kit puede leer lo que guardan en este mismo navegador:
+   · libros y ventas de Amazon → los manda el Centro de Control (aquí se ven, no se editan)
+   · palabras escritas y objetivo → los manda Novelia (si la novela está vinculada)
+   Si esas apps no se usan en este navegador, el Kit sigue con sus propios datos. */
+const ENLACE = { centro: null, novelia: null, leido: false };
+function leerOtraApp(db, clave) {
+  return new Promise(res => {
+    let r;
+    try { r = indexedDB.open(db); } catch (e) { res(null); return; }
+    // Si esa app nunca se ha abierto aquí, no se crea su base de datos vacía
+    r.onupgradeneeded = () => { try { r.transaction.abort(); } catch (e) { /* nada */ } };
+    r.onerror = () => res(null);
+    r.onblocked = () => res(null);
+    r.onsuccess = () => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains("kv")) { d.close(); res(null); return; }
+      try {
+        const g = d.transaction("kv", "readonly").objectStore("kv").get(clave);
+        g.onsuccess = () => { d.close(); res(g.result === undefined ? null : g.result); };
+        g.onerror = () => { d.close(); res(null); };
+      } catch (e) { d.close(); res(null); }
+    };
+  });
+}
+const firmaDe = v => { const s = JSON.stringify(v); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + s.length.toString(36); };
+const normTit = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+async function traerDeOtrasApps() {
+  const [D, M] = await Promise.all([leerOtraApp("centro", "datos"), leerOtraApp("novelia-studio", "mesa:meta")]);
+  let cambiado = false;
+  ENLACE.leido = true;
+  // Centro de Control → catálogo y ventas de Amazon
+  ENLACE.centro = null;
+  if (D && Array.isArray(D.libros) && (D.libros.length || ((D.kdp || {}).ventas || []).length)) {
+    const cat = D.libros.map(l => ({ id: "cc-" + l.id, titulo: l.titulo || "", serie: l.serie || "", genero: l.genero || "", estado: l.estado || "Activo",
+      fecha: l.fechaPub || "", asin: l.asin || "", isbn: l.isbnAmazon || l.isbnPropio || "", enlace: l.afiliado || "", notas: l.subtitulo || "" }));
+    const k = D.kdp || {};
+    const ven = (k.ventas || []).map(f => {
+      const tx = String(f.transaccion || f.tipo || "").toLowerCase();
+      return { id: "cc-" + f.id, mes: f.mes, titulo: f.titulo || "", asin: f.codigo || "", tienda: f.tienda || "",
+        formato: /blanda|paperback/.test(tx) ? "Tapa blanda" : /dura|hardcover/.test(tx) ? "Tapa dura" : "Ebook",
+        uds: num(f.netas), regalias: num(f.regalias), moneda: String(f.moneda || "EUR").toUpperCase() };
+    }).concat((k.kenp || []).map(f => ({ id: "cc-" + f.id, mes: f.mes, titulo: f.titulo || "", asin: f.codigo || "", tienda: f.tienda || "",
+      formato: "KENP", uds: num(f.paginas), regalias: "", moneda: "EUR" })));
+    ENLACE.centro = { fecha: D.cambiado || "", libros: cat.length, lineas: ven.length };
+    const firma = firmaDe([cat, ven]);
+    if (S.centroFirma !== firma) { S.catalogo = cat; S.kdpVentas = ven; S.centroFirma = firma; cambiado = true; }
+  }
+  // Novelia → palabras escritas y objetivo de la novela vinculada
+  ENLACE.novelia = null;
+  if (M && Array.isArray(M.proyectos) && M.nodos && typeof M.nodos === "object") {
+    const nodos = Object.values(M.nodos);
+    const nov = M.proyectos.map(p => ({ id: p.id, titulo: p.titulo || "Sin título", objetivo: num(p.objetivo),
+      palabras: nodos.filter(n => n && n.pid === p.id && n.tipo !== "parte").reduce((a, n) => a + (num(n.palabras) || 0), 0) + Math.max(0, num(p.palabrasFuera) || 0) }));
+    ENLACE.novelia = nov;
+    S.proyectos.forEach(p => {
+      if (p.noveliaId === undefined || p.noveliaId === null) {
+        const m = nov.find(x => normTit(x.titulo) && normTit(x.titulo) === normTit(p.titulo));
+        if (m) { p.noveliaId = m.id; cambiado = true; }
+      }
+      const m = p.noveliaId && nov.find(x => x.id === p.noveliaId);
+      if (!m) return;
+      if (num(p.palabrasEscritas) !== m.palabras) { p.palabrasEscritas = m.palabras; cambiado = true; }
+      if (m.objetivo && num(p.objetivoPalabras) !== m.objetivo) { p.objetivoPalabras = m.objetivo; cambiado = true; }
+    });
+  }
+  if (cambiado) save();
+  render();
+}
+function novelaVinculada(p) { return ENLACE.novelia && p.noveliaId ? ENLACE.novelia.find(x => x.id === p.noveliaId) || null : null; }
+// Al abrir, al volver a la app y al cambiar de sección
+setTimeout(traerDeOtrasApps, 300);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) traerDeOtrasApps(); });
+window.addEventListener("hashchange", () => { if (["libro", "catalogo", "inicio"].includes((location.hash || "").slice(1))) traerDeOtrasApps(); });
 
 })();
