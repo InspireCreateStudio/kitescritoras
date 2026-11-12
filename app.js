@@ -535,6 +535,7 @@ function ajustes() {
   if (!a.cal || typeof a.cal !== "object") a.cal = {};
   CAL_TIPOS.forEach(([k]) => { if (typeof a.cal[k] !== "boolean") a.cal[k] = true; });
   if (!a.calTam) a.calTam = "grande";
+  if (a.copiaDias === undefined || a.copiaDias === "") a.copiaDias = 7;
   return a;
 }
 function aplicarAcento() {
@@ -654,7 +655,8 @@ function vAjustes() {
     <div class="checks">${CAL_TIPOS.map(([k, t]) => `<label class="chk" style="margin:0"><input type="checkbox" ${gp("ajustes.cal." + k)}${a.cal[k] ? " checked" : ""}> ${t}</label>`).join("")}</div>
     <div class="filters">Tamaño: <button type="button" data-caltam="grande" aria-pressed="${a.calTam !== "pequeño"}">Grande, con el texto</button><button type="button" data-caltam="pequeño" aria-pressed="${a.calTam === "pequeño"}">Pequeño, con puntos</button></div></div>
   <div class="card"><h3>Tus datos</h3>
-    <p class="hint" style="margin:0">Todo se guarda en este navegador. Descarga una copia de vez en cuando y guárdala en tu ordenador o en Drive.</p>
+    <p class="hint" style="margin:0">Todo se guarda en este navegador. ${ksConectado() ? `Con Google Drive conectado, las copias de seguridad van a tu Drive, a la carpeta «${CopiaDrive.CARPETA}». Me quedo con las dos últimas y borro las anteriores.${CopiaDrive.faltaPermiso("Kit Escritoras · Copia") ? ` <b style="color:var(--mal)">Falta tu permiso: desconecta y vuelve a conectar Google Drive.</b>` : ""}` : "Las copias de seguridad van a tu carpeta de Descargas; si conectas Google Drive, irán a tu Drive."}</p>
+    <label class="field" style="max-width:260px"><span>Copia automática</span><select data-s="g" data-path="ajustes.copiaDias">${[[0, "Nunca"], [1, "Cada día"], [3, "Cada 3 días"], [7, "Cada semana"], [15, "Cada 15 días"], [30, "Cada mes"]].map(([v, t]) => `<option value="${v}"${+a.copiaDias === v ? " selected" : ""}>${t}</option>`).join("")}</select></label>
     <div class="filters"><button type="button" id="ajCopia">Copia de seguridad</button><button type="button" id="ajNovelia">Traer de Novelia Studio</button><button type="button" id="ajCentro">Traer del Centro de control</button><button type="button" id="ajReset">Empezar en blanco</button></div></div>`;
 }
 function leerFoto(file) {
@@ -2175,6 +2177,22 @@ function descargarCopia() {
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   save(); pintarUltimaCopia();
 }
+function ksConectado() { try { return !!KSync.e.conectado; } catch (e) { return false; } } // KSync se crea más abajo
+// Copia de seguridad: a Google Drive si está conectado (se quedan las dos últimas); si no, a Descargas
+async function hacerCopiaKit(auto) {
+  const d = new Date();
+  const nombre = `Kit Escritoras · Copia ${TODAY} ${String(d.getHours()).padStart(2, "0")}h${String(d.getMinutes()).padStart(2, "0")}.json`;
+  const blob = new Blob([JSON.stringify(S, null, 1)], { type: "application/json" });
+  const bajar = (b, n) => { const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = n; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+  const dest = await CopiaDrive.guardar({ prefijo: "Kit Escritoras · Copia", nombre, blob, auto: !!auto, app: {
+    conectado: () => !!KSync.e.conectado, token: () => ksPedirToken(false),
+    olvidarToken: () => { KSync.token = null; localStorage.removeItem(KS_TOKEN); },
+    descargar: bajar, aviso: toast,
+  } });
+  if (dest === "descargas" && !KSync.e.conectado) toast(auto ? "He guardado tu copia de seguridad en Descargas" : "Copia guardada en Descargas");
+  S.ultimaCopia = TODAY; save(); pintarUltimaCopia();
+  return dest;
+}
 function pintarUltimaCopia() {
   const b = $("#btnBackup"); if (!b) return;
   b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Copia${S.ultimaCopia ? `<small>${esc(dayLabel(S.ultimaCopia))}</small>` : ""}`;
@@ -2183,7 +2201,7 @@ function pintarUltimaCopia() {
 $("#btnBackup").addEventListener("click", () => {
   openModal(`<h2>Copia de seguridad</h2>
     <p style="margin:0">Tus datos se guardan en este navegador. Descarga una copia de vez en cuando y guárdala en tu ordenador o en Drive: te sirve si cambias de móvil, borras el navegador o quieres pasar tus datos a otro aparato.</p>
-    <div class="acts" style="justify-content:flex-start"><button class="btn" type="button" id="bkDown">Descargar copia</button>
+    <div class="acts" style="justify-content:flex-start"><button class="btn" type="button" id="bkHacer">Hacer copia ahora</button><button class="btn ghost" type="button" id="bkDown">Descargar copia</button>
       <label class="btn ghost" style="display:inline-flex;align-items:center">Cargar una copia<input type="file" id="bkFile" accept=".json,application/json" style="display:none"></label></div>
     <p class="hint" id="bkMsg" style="margin:0"></p>
     <details><summary class="hint" style="cursor:pointer">Copiar o pegar como texto</summary>
@@ -2192,6 +2210,7 @@ $("#btnBackup").addEventListener("click", () => {
     </details>
     <div class="acts"><button class="btn ghost" type="button" data-close>Cerrar</button></div>`, box => {
     const msg = $("#bkMsg", box);
+    $("#bkHacer", box).addEventListener("click", async () => { msg.textContent = "Guardando…"; const d = await hacerCopiaKit(false); msg.textContent = d === "drive" ? "Copia guardada en tu Google Drive." : "Copia guardada en tu carpeta de descargas."; });
     $("#bkDown", box).addEventListener("click", () => { try { descargarCopia(); msg.textContent = "Copia descargada. Búscala en tu carpeta de descargas."; } catch (e) { msg.textContent = "No se ha podido descargar. Usa «Copiar o pegar como texto»."; } });
     $("#bkFile", box).addEventListener("change", e => {
       const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2243,7 +2262,11 @@ setTimeout(() => {
     if (sessionStorage.getItem("ks-aviso-copia")) return;
     const dias = S.ultimaCopia ? Math.round((new Date(TODAY) - new Date(S.ultimaCopia)) / 86400000) : null;
     const hayDatos = (S.proyectos || []).some(p => p.titulo && !/ejemplo/i.test(p.titulo)) || (S.catalogo || []).length;
-    if (!hayDatos || (dias !== null && dias < 14)) return;
+    if (!hayDatos) return;
+    // Copia automática cada los días elegidos en Ajustes
+    const cada = +ajustes().copiaDias || 0;
+    if (cada > 0) { if (dias === null || dias >= cada) hacerCopiaKit(true); return; }
+    if (dias !== null && dias < 14) return;
     sessionStorage.setItem("ks-aviso-copia", "1");
     toast(dias === null ? "Aún no has hecho ninguna copia de seguridad: pulsa «Copia» en el menú." : `Hace ${dias} días de tu última copia de seguridad: pulsa «Copia» en el menú.`);
   } catch (e) { /* sin sessionStorage */ }
@@ -2306,7 +2329,7 @@ if ("serviceWorker" in navigator && location.protocol === "https:" && !enClaude)
 // =====================================================================
 
 const KS_CLIENT_ID = '171808282615-3onraig9fvo9gg2fea3mdsouon7h6pv9.apps.googleusercontent.com';
-const KS_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+const KS_SCOPE = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file';
 const KS_ARCHIVO = 'kit-escritoras.json';
 const KS_EST = 'kitEscritoras.sincro', KS_TOKEN = 'kitEscritoras.token';
 
