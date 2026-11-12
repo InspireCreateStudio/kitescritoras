@@ -300,6 +300,13 @@ select.pill { appearance: none; -webkit-appearance: none; border-radius: 999px !
   .calmes .ev { font-size: .6rem; padding: 1px 3px; }
 }
 
+
+/* Copia en Google Drive */
+.ks-pill { font: inherit; font-size: .62rem; font-weight: 700; border: 1px solid var(--linea); background: var(--papel); color: var(--gris); border-radius: 999px; padding: 3px 7px; cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.ks-pill:hover { border-color: var(--rosa-2); color: var(--tinta); }
+.ks-pill.alerta { border-color: var(--aviso); color: var(--aviso); background: var(--aviso-bg); }
+.ks-pill.girando { opacity: .7; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* Comparar años */

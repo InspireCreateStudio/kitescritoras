@@ -2272,4 +2272,228 @@ if ("serviceWorker" in navigator && location.protocol === "https:" && !enClaude)
     document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update().catch(() => {}); });
   }).catch(() => {});
 }
+
+// =====================================================================
+//  Kit Escritoras — Copia automática en Google Drive.
+//  Todo se guarda en un archivo «kit-escritoras.json» dentro de la
+//  carpeta privada de la app en tu Drive (appDataFolder): no se ve entre
+//  tus archivos y ninguna otra app puede leerlo.
+//  Igual que en Novelia Studio: mismo ID de cliente de Google.
+// =====================================================================
+
+const KS_CLIENT_ID = '171808282615-3onraig9fvo9gg2fea3mdsouon7h6pv9.apps.googleusercontent.com';
+const KS_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+const KS_ARCHIVO = 'kit-escritoras.json';
+const KS_EST = 'kitEscritoras.sincro', KS_TOKEN = 'kitEscritoras.token';
+
+const KSync = {
+  e: (() => { try { return JSON.parse(localStorage.getItem(KS_EST)) || {}; } catch (e) { return {}; } })(),
+  guardar() { try { localStorage.setItem(KS_EST, JSON.stringify(this.e)); } catch (e) { /* sin espacio */ } },
+  token: null, caduca: 0, ocupado: false, aplicando: false, estado: ''
+};
+if (!KSync.e.disp) { KSync.e.disp = uid(); KSync.guardar(); }
+try { const t = JSON.parse(localStorage.getItem(KS_TOKEN)); if (t && t.caduca > Date.now() + 60000) { KSync.token = t.token; KSync.caduca = t.caduca; } } catch (e) { /* nada */ }
+
+const ksHuella = () => { const s = JSON.stringify(S); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + s.length.toString(36); };
+const ksDia = () => new Date().toISOString().slice(0, 10);
+
+// Cada vez que el kit guarda, si ha cambiado algo de verdad, se marca para subir
+const ksSaveOriginal = save;
+save = function () {
+  ksSaveOriginal.apply(this, arguments);
+  if (KSync.aplicando || !KSync.e.conectado || !S) return;
+  setTimeout(() => {
+    if (KSync.e.h === ksHuella()) return;
+    if (!KSync.e.sucio) { KSync.e.sucio = Date.now(); KSync.guardar(); }
+    ksPintar('');
+    ksSubirPronto();
+  }, 700);
+};
+
+function ksCargarGIS() {
+  if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true; s.onload = res; s.onerror = () => rej(new Error('sin conexión')); document.head.appendChild(s); });
+}
+let ksTokenClient = null, ksEsperando = null;
+async function ksPedirToken(interactivo) {
+  if (KSync.token && KSync.caduca > Date.now() + 60000) return KSync.token;
+  await ksCargarGIS();
+  if (!ksTokenClient) ksTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: KS_CLIENT_ID, scope: KS_SCOPE,
+    callback: (r) => {
+      const w = ksEsperando; ksEsperando = null; if (!w) return;
+      if (r.error) { w.rej(new Error(r.error)); return; }
+      KSync.token = r.access_token; KSync.caduca = Date.now() + (r.expires_in || 3600) * 1000;
+      try { localStorage.setItem(KS_TOKEN, JSON.stringify({ token: KSync.token, caduca: KSync.caduca })); } catch (e) { /* nada */ }
+      w.res(KSync.token);
+    },
+    error_callback: (e) => { const w = ksEsperando; ksEsperando = null; if (w) w.rej(new Error((e && e.type) || 'cancelado')); }
+  });
+  return new Promise((res, rej) => { ksEsperando = { res, rej }; ksTokenClient.requestAccessToken({ prompt: interactivo ? 'consent' : '' }); });
+}
+async function ksDrive(url, opts = {}) {
+  const t = await ksPedirToken(false);
+  const r = await fetch(url, { ...opts, headers: { Authorization: 'Bearer ' + t, ...(opts.headers || {}) } });
+  if (r.status === 401) { KSync.token = null; localStorage.removeItem(KS_TOKEN); throw new Error('token'); }
+  if (!r.ok) throw new Error('drive ' + r.status);
+  return r;
+}
+async function ksRemoto() {
+  const r = await ksDrive(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D'${KS_ARCHIVO}'&fields=files(id,modifiedTime,appProperties)&orderBy=modifiedTime%20desc`);
+  const j = await r.json(); return (j.files || [])[0] || null;
+}
+async function ksSubir(remoto) {
+  const fecha = new Date().toISOString();
+  const h = ksHuella();
+  const cuerpo = JSON.stringify({ app: 'kit-escritoras', version: 1, fecha, disp: KSync.e.disp, datos: S });
+  const props = { fecha, disp: KSync.e.disp };
+  const lim = 'kit' + uid();
+  const meta = remoto ? { appProperties: props } : { name: KS_ARCHIVO, parents: ['appDataFolder'], appProperties: props };
+  const multi = `--${lim}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${lim}\r\nContent-Type: application/json\r\n\r\n${cuerpo}\r\n--${lim}--`;
+  const url = remoto ? `https://www.googleapis.com/upload/drive/v3/files/${remoto.id}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+  await ksDrive(url, { method: remoto ? 'PATCH' : 'POST', headers: { 'Content-Type': `multipart/related; boundary=${lim}` }, body: multi });
+  Object.assign(KSync.e, { base: fecha, sucio: 0, ultima: Date.now(), h }); KSync.guardar();
+}
+async function ksTraer(remoto) {
+  const r = await ksDrive(`https://www.googleapis.com/drive/v3/files/${remoto.id}?alt=media`);
+  const j = await r.json();
+  if (!j || !j.datos || !Array.isArray(j.datos.proyectos)) throw new Error('archivo');
+  KSync.aplicando = true;
+  try {
+    S = normalize(j.datos);
+    saveLocal();
+    if (typeof aplicarAcento === 'function') aplicarAcento();
+    render();
+    Object.assign(KSync.e, { base: j.fecha, sucio: 0, ultima: Date.now(), h: ksHuella() }); KSync.guardar();
+  } finally { KSync.aplicando = false; }
+  toast('Traído de Google Drive: ya tienes lo último');
+}
+function ksDescargarCopia(nombre) {
+  const b = new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+async function ksSincronizar(manual) {
+  if (!KSync.e.conectado || KSync.ocupado || !navigator.onLine || $('#ksEste')) return;
+  KSync.ocupado = true; ksPintar('Sincronizando…');
+  try {
+    const remoto = await ksRemoto();
+    const fechaR = remoto && remoto.appProperties && remoto.appProperties.fecha;
+    const otroCambio = remoto && fechaR !== KSync.e.base;
+    if (!remoto) await ksSubir(null);
+    else if (otroCambio && !KSync.e.sucio) await ksTraer(remoto);
+    else if (otroCambio && KSync.e.sucio) { KSync.ocupado = false; ksPintar(''); ksConflicto(remoto); return; }
+    else if (KSync.e.sucio) await ksSubir(remoto);
+    ksPintar('');
+    if (manual) toast('Guardado en Google Drive');
+  } catch (e) {
+    const m = e.message || '';
+    ksPintar(m === 'token' || /popup|cancel|access_denied|interaction/.test(m) ? 'Toca para conectar' : !navigator.onLine ? 'Sin conexión' : 'No se ha podido');
+    if (manual) toast(/access_denied/.test(m) ? 'Google no te deja entrar: pide a Marta que te añada como usuaria de prueba.' : 'No he podido sincronizar. Vuelve a intentarlo.');
+  } finally { KSync.ocupado = false; }
+}
+function ksConflicto(remoto) {
+  const f = new Date(remoto.appProperties.fecha).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
+  openModal(`<h2>Hay cambios en los dos sitios</h2>
+    <p style="margin:0">Has cambiado cosas aquí y en otro aparato (el ${esc(f)}). No puedo juntarlas, así que dime con cuál me quedo. La otra te la descargo como copia, para que no pierdas nada.</p>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Ahora no</button><button class="btn ghost" type="button" id="ksOtro">Lo del otro aparato</button><button class="btn" type="button" id="ksEste">Lo de este aparato</button></div>`, box => {
+    $('#ksEste', box).addEventListener('click', async () => {
+      closeModal();
+      try { KSync.ocupado = true; const r = await ksDrive(`https://www.googleapis.com/drive/v3/files/${remoto.id}?alt=media`); const j = await r.json(); const b = new Blob([JSON.stringify(j.datos || j, null, 1)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `Kit Escritoras · lo del otro aparato ${ksDia()}.json`; document.body.appendChild(a); a.click(); a.remove(); await ksSubir(remoto); toast('Guardado lo de este aparato'); }
+      catch (e) { toast('No he podido subirlo'); } finally { KSync.ocupado = false; ksPintar(''); }
+    });
+    $('#ksOtro', box).addEventListener('click', async () => {
+      closeModal();
+      try { ksDescargarCopia(`Kit Escritoras · lo de este aparato ${ksDia()}.json`); await new Promise(r => setTimeout(r, 600)); KSync.e.sucio = 0; await ksTraer(remoto); }
+      catch (e) { toast('No he podido traerlo'); } finally { ksPintar(''); }
+    });
+  });
+}
+let ksTimer = null;
+function ksSubirPronto() { clearTimeout(ksTimer); ksTimer = setTimeout(() => { if (KSync.e.conectado && KSync.token && KSync.caduca > Date.now()) ksSincronizar(); }, 15000); }
+
+// ---------- estado visible (abajo del menú) ----------
+function ksPintar(t) {
+  KSync.estado = t;
+  let b = $('#ksPill');
+  if (!KSync.e.conectado) { if (b) b.remove(); return; }
+  if (!b) {
+    b = document.createElement('button'); b.id = 'ksPill'; b.type = 'button'; b.className = 'ks-pill'; b.title = 'Guardar ahora en Google Drive';
+    b.addEventListener('click', () => ksConectarYSincronizar());
+    const foot = $('.side .foot'); if (foot) foot.insertBefore(b, $('#btnReset')); else document.body.appendChild(b);
+  }
+  const hace = KSync.e.ultima ? Math.round((Date.now() - KSync.e.ultima) / 60000) : null;
+  b.textContent = t || (KSync.e.sucio ? '☁ Sin subir' : hace === null ? '☁ Drive' : `☁ Al día${hace < 1 ? '' : hace < 60 ? ` · ${hace} min` : ''}`);
+  b.classList.toggle('alerta', /conectar|podido/.test(t));
+  b.classList.toggle('girando', /…$/.test(t));
+}
+async function ksConectarYSincronizar() {
+  try { await ksPedirToken(!KSync.e.conectado); KSync.e.conectado = true; KSync.guardar(); await ksSincronizar(true); }
+  catch (e) { toast(/access_denied/.test(e.message || '') ? 'Google no te deja entrar: hace falta estar en la lista de usuarias de prueba.' : 'No se ha conectado con Google'); ksPintar('Toca para conectar'); }
+  if (typeof view !== 'undefined' && view.route === 'ajustes') render();
+}
+
+// ---------- tarjeta en Ajustes ----------
+function ksTarjeta() {
+  const E = KSync.e;
+  const ult = E.ultima ? new Date(E.ultima).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  return `<div class="card" id="ksCard"><h3>Copia automática en Google Drive</h3>
+    ${E.conectado
+      ? `<p style="margin:0">Conectado a tu Google Drive. Se guarda solo mientras trabajas y lo tienes igual en el móvil y en el ordenador.${ult ? ` Última vez: ${esc(ult)}.` : ''}${E.sucio ? ' <b>Hay cambios sin subir.</b>' : ''}</p>
+        <div class="filters"><button type="button" id="ksYa">Guardar ahora</button><button type="button" id="ksOff">Desconectar este aparato</button></div>`
+      : `<p style="margin:0">Guarda el kit en tu Google Drive y no pierdes nada si borras el navegador o cambias de móvil. Se sube solo mientras trabajas y se trae al abrir la app en otro aparato.</p>
+        <div class="filters"><button type="button" id="ksOn">Conectar con Google Drive</button></div>
+        <p class="hint" style="margin:0">Google te avisará de que la app «no está verificada»: es normal, pulsa «Continuar». Se guarda en una carpeta privada de la app: no lo verás entre tus archivos de Drive.</p>`}
+  </div>`;
+}
+vAjustes = (orig => function () {
+  const html = orig.apply(this, arguments);
+  const marca = '<div class="card"><h3>Tus datos</h3>';
+  return html.includes(marca) ? html.replace(marca, ksTarjeta() + marca) : html + ksTarjeta();
+})(vAjustes);
+
+document.addEventListener('click', async (ev) => {
+  const b = ev.target.closest && ev.target.closest('#ksOn, #ksYa, #ksOff');
+  if (!b) return;
+  if (b.id === 'ksYa') { await ksConectarYSincronizar(); return; }
+  if (b.id === 'ksOff') {
+    KSync.e.conectado = false; KSync.token = null; localStorage.removeItem(KS_TOKEN); KSync.guardar(); ksPintar(''); render();
+    toast('Desconectado. Tus datos siguen aquí y en Drive.'); return;
+  }
+  if (b.id === 'ksOn') {
+    try {
+      await ksPedirToken(true);
+      const remoto = await ksRemoto();
+      KSync.e.conectado = true;
+      if (remoto) {
+        ksDescargarCopia(`Kit Escritoras · antes de conectar ${ksDia()}.json`);
+        KSync.e.sucio = 0; KSync.e.base = null; KSync.guardar();
+        await new Promise(r => setTimeout(r, 600));
+        await ksTraer(remoto);
+      } else { KSync.e.sucio = Date.now(); KSync.guardar(); await ksSincronizar(true); }
+      ksPintar(''); render();
+    } catch (e) {
+      toast(/access_denied/.test(e.message || '') ? 'Google no te deja entrar: hace falta estar en la lista de usuarias de prueba.' : 'No se ha conectado con Google');
+    }
+  }
+});
+
+// ---------- arranque ----------
+(function ksEsperar() {
+  if (!S || !$('#view') || !$('#view').innerHTML) { setTimeout(ksEsperar, 300); return; }
+  if (!KSync.e.conectado) return;
+  ksPintar('');
+  if (KSync.token && KSync.caduca > Date.now() + 60000) ksSincronizar();
+  else {
+    ksPintar('Toca para conectar');
+    // Google necesita un toque para renovar el permiso: el primero que des en la app
+    document.addEventListener('click', function uno() { document.removeEventListener('click', uno, true); ksConectarYSincronizar(); }, true);
+  }
+  setInterval(() => { if (!document.hidden && KSync.token && KSync.caduca > Date.now()) ksSincronizar(); }, 120000);
+  document.addEventListener('visibilitychange', () => {
+    if (!KSync.token || KSync.caduca <= Date.now()) return;
+    if (!document.hidden) ksSincronizar(); else if (KSync.e.sucio) ksSincronizar();
+  });
+})();
+
 })();
