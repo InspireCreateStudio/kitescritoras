@@ -23,7 +23,7 @@ const dayLabel = s => { if (!s) return "Sin fecha"; const d = new Date(s + "T12:
 const words = t => (String(t || "").trim().match(/\S+/g) || []).length;
 
 /* ---------- Catálogos ---------- */
-const FASES = ["Escritura", "Edición y diseño", "Publicación", "Preventa y promoción", "Prensa y colaboraciones", "Envíos", "Después del lanzamiento"];
+const FASES = ["Edición y diseño", "Publicación", "Preventa y promoción", "Prensa y colaboraciones", "Envíos", "Después del lanzamiento"];
 // Días respecto al lanzamiento (día D) en los que cae cada fase, para repartir fechas
 const VENTANAS = { "Escritura": [-180, -121], "Edición y diseño": [-120, -61], "Publicación": [-60, -31], "Preventa y promoción": [-45, -1], "Prensa y colaboraciones": [-30, 0], "Envíos": [-14, 7], "Después del lanzamiento": [1, 30] };
 const BEATS = ["Planteamiento", "Detonante", "Primer cambio de rumbo", "Desarrollo", "Segundo cambio de rumbo", "Clímax", "Final"];
@@ -154,8 +154,7 @@ const COLS = {
 
 /* ---------- Datos de ejemplo ---------- */
 const TAREAS_KIT = [
-  ["Escritura", "Documentación", "Libro"], ["Escritura", "Escaleta", "Libro"], ["Escritura", "Vision board", "Canva"], ["Escritura", "Sinopsis", "Libro"],
-  ["Escritura", "Escribir la novela", "Libro"], ["Escritura", "Releer la novela completa", "Libro"], ["Escritura", "Sacar frases para promos", "Libro"],
+  // La escritura (documentación, escaleta, escribir y releer) se lleva en Novelia Studio
   ["Edición y diseño", "Corrección 1ª vuelta tras correctora", "Libro"], ["Edición y diseño", "Corrección final", "Libro"], ["Edición y diseño", "Portada digital", "Canva"],
   ["Edición y diseño", "Portada tapa blanda Amazon", "Canva"], ["Edición y diseño", "Portada tapa dura Amazon", "Canva"], ["Edición y diseño", "Portada para imprenta", "Canva"],
   ["Edición y diseño", "Back matter papel", "Libro"], ["Edición y diseño", "Back matter digital", "Libro"], ["Edición y diseño", "Maquetación papel", "Libro"],
@@ -177,6 +176,7 @@ const TAREAS_KIT = [
   ["Envíos", "Sobres para envíos", "Tiendas online"], ["Envíos", "Etiquetas de envío", "Canva / Packlink"], ["Envíos", "Códigos de envío ordinario", "Correos"],
   ["Envíos", "Preparar sobres y paquetes", "En mano"], ["Envíos", "Enviar pedidos", "Correos"], ["Envíos", "Actualizar pedidos con nº de seguimiento", "Kit Escritoras"],
   ["Publicación", "Revisar la ficha de Amazon: precio, categorías y A+", "KDP"],
+  ["Publicación", "Sinopsis para Amazon", "Libro"], ["Preventa y promoción", "Sacar frases para promos", "Libro"],
   ["Preventa y promoción", "Buscar lectoras ARC y bookstagrammers", "Redes"], ["Preventa y promoción", "Enviar los ejemplares anticipados (ARC)", "E-mail"],
   ["Preventa y promoción", "Página del libro en la web", "Web"],
   ["Después del lanzamiento", "Enlaces de compra en la web y en la bio", "Web"], ["Después del lanzamiento", "Recordar a las lectoras ARC que dejen reseña", "E-mail"],
@@ -234,7 +234,7 @@ function seed() {
   p.frases = [{ id: uid(), frase: "«No te soporto. Pero tampoco soporto que te vayas».", personaje: "Lucía", capitulo: "27", idea: "Fondo de mar con tipografía manuscrita", estado: "Idea" }];
   p.kdp = ["comedia romántica", "enemigos a amantes", "romántica contemporánea", "romance de oficina", "proximidad forzada", "romántica con humor", "romántica de verano"];
   p.tareas.forEach((t, i) => { if (i < 3) t.estado = "Hecho"; if (i === 3 || i === 4) { t.estado = "En curso"; t.importancia = "Alta"; } });
-  const f = p.tareas.find(t => t.tarea === "Sinopsis"); f.fecha = ym + "-20";
+  const f = p.tareas.find(t => t.tarea === "Sinopsis para Amazon"); f.fecha = ym + "-20";
   const f2 = p.tareas.find(t => t.tarea === "Corrección 1ª vuelta tras correctora"); f2.fecha = ym + "-28"; f2.importancia = "Alta";
   p.costes = COSTES_KIT.map(([concepto, importe, notas]) => ({ id: uid(), concepto, importe, notas }));
   p.pedidos = [
@@ -862,6 +862,7 @@ function vLanzamiento() {
     const h = all.filter(t => t.estado === "Hecho").length;
     const pc = all.length ? Math.round(h / all.length * 100) : 0;
     return `<div class="card phase"><div class="ph"><h3>${esc(fa)}</h3>${bar(pc, pc === 100 ? "ok" : "")}<span class="pct">${h}/${all.length}</span></div>
+      ${fa === "Escritura" ? `<div class="note" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap"><span>La escritura ahora se lleva en <b>Novelia Studio</b>. Si ya no te hace falta aquí, puedes quitar esta fase.</span><button class="btn ghost sm" type="button" data-quitarfase="Escritura">Quitar la fase Escritura</button></div>` : ""}
       ${tableHTML("tareas", "p", rows, { preset: { fase: fa }, addLabel: "Añadir tarea", empty: f === "todas" ? "Sin tareas en esta fase." : "Nada con este filtro." })}</div>`;
   }).join("");
   const fb = (k, t) => `<button type="button" data-ftareas="${k}" aria-pressed="${f === k}">${t}</button>`;
@@ -2070,6 +2071,12 @@ document.addEventListener("click", e => {
     save(); render();
     const rows = $$("#view .tbl [data-row]"); const last = S.posts[S.posts.length - 1];
     const inp = $(`[data-row="${last.id}"] [data-k="contenido"]`); if (inp) inp.focus();
+    return;
+  }
+  if (d.quitarfase) {
+    const p = P(), antes = p.tareas.slice(), n = p.tareas.filter(x => x.fase === d.quitarfase).length;
+    p.tareas = p.tareas.filter(x => x.fase !== d.quitarfase); save(); render();
+    toast(`Quitada la fase ${d.quitarfase} (${n} tareas)`, () => { p.tareas = antes; });
     return;
   }
   if (d.dia) { view.diaSel = view.diaSel === d.dia ? "" : d.dia; render(); return; }
