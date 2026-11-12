@@ -1,7 +1,7 @@
 // Kit Escritoras — funciona sin conexión.
 // Sirve los archivos guardados y, si hay internet, se trae la versión nueva para la próxima vez.
 // Cuando cambies app.js o app.css, sube también este archivo cambiando VERSION (ks-v4, ks-v5…).
-const VERSION = 'ks-v19';
+const VERSION = 'ks-v20';
 const ARCHIVOS = ['./', './index.html', './apps.js', './version.js', './app.css', './copia-drive.js', './app.js', './manifest.webmanifest', './32.png', './180.png', './192.png', './512.png'];
 
 self.addEventListener('install', (e) => {
