@@ -697,6 +697,7 @@ function vInicio() {
     : faltan === 0 ? tile("Lanzamiento", "¡Hoy!", "es el día D", "ok") : tile("Lanzado", dayLabel(p.lanzFecha), "hace " + (-faltan) + " días", "ok");
 
   return `
+  <div class="apps-barra"></div>
   ${tarjetaPerfil()}
   <div class="head"><div><div class="eyebrow">${esc(p.titulo)}</div><h1 style="text-transform:capitalize">${mesLabel(ym)}</h1>
     <p>Cómo va tu libro: producción, lanzamiento, redes y ventas. Cambia de mes con las flechas de arriba.</p></div></div>
